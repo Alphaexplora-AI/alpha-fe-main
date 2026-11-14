@@ -54,12 +54,8 @@ export const SettingsView: React.FC<{ defaultSection?: SettingsSection }> = ({ d
   };
 
   /**
-   * Asking for an update, rather than waiting six hours for one.
-   *
-   * The app checks on launch and every six hours, which is a long time to wait
-   * when you know a release exists. The answer is kept here rather than shown
-   * in a dialog: a download that has started ends in the restart prompt anyway,
-   * so this only has to say what happened.
+   * Optional availability check. Automatic checks and installation happen
+   * before the workspace opens; this button never interrupts an active session.
    */
   const [updateCheck, setUpdateCheck] = useState<UpdateCheck | null>(null);
   const [updateChecking, setUpdateChecking] = useState(false);
@@ -86,7 +82,8 @@ export const SettingsView: React.FC<{ defaultSection?: SettingsSection }> = ({ d
   const updateMessage = (check: UpdateCheck): string => {
     switch (check.status) {
       case 'current': return `Alpha ${check.version ?? ''} is the newest release.`.replace('  ', ' ');
-      case 'downloading': return `Alpha ${check.version} is downloading. You will be asked before it restarts.`;
+      case 'available': return `${check.version ? `Alpha ${check.version}` : 'A new Alpha release'} is available. It will install the next time Alpha starts.`;
+      case 'downloading': return `Alpha ${check.version ?? 'update'} is downloading. It will install the next time Alpha starts.`;
       case 'unsupported': return check.reason;
       case 'error': return `Could not check: ${check.message}`;
     }
@@ -235,8 +232,8 @@ export const SettingsView: React.FC<{ defaultSection?: SettingsSection }> = ({ d
                       </div>
 
                       <p className="text-[11px] text-content-secondary leading-relaxed">
-                        Alpha looks for a new release when it starts and every six hours, downloads it
-                        in the background, and asks before restarting.
+                        Alpha checks for updates before opening your workspace. Available updates install
+                        automatically; updates found while Alpha is open wait until the next launch.
                       </p>
 
                       <div className="flex flex-wrap items-center gap-2 pt-1">

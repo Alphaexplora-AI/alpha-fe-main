@@ -14,7 +14,9 @@
 export type UpdateCheck =
   /** Already the newest release. */
   | { status: 'current'; version?: string }
-  /** A newer release exists and is downloading; the restart dialog follows. */
+  /** A newer release exists; the launch updater will install it before opening the workspace. */
+  | { status: 'available'; version?: string }
+  /** Compatibility with older desktop builds that downloaded before reporting. */
   | { status: 'downloading'; version?: string }
   /** Run from source, or no GitHub sign-in to read releases with. */
   | { status: 'unsupported'; reason: string }
