@@ -6,25 +6,38 @@ import type { UserRole } from '@/shared/types';
 vi.hoisted(() => { (globalThis as { window?: unknown }).window ??= globalThis; });
 
 let currentRole: UserRole = 'pm';
+// Desktop app or hosted web: read on every call, so each test can pick one.
+let desktopApp = true;
+vi.mock('@/shared/desktop', () => ({ get isDesktop() { return desktopApp; }, desktop: undefined }));
 vi.mock('@/app/AppContext', () => ({
   useApp: () => ({ createProject: vi.fn(), updateProject: vi.fn(), projects: [], can: () => true, role: currentRole })
 }));
 
 import { CreateProjectModal } from './CreateProjectModal';
 
-const render = (role: UserRole) => {
+const render = (role: UserRole, inDesktopApp = true) => {
   currentRole = role;
+  desktopApp = inDesktopApp;
   return renderToStaticMarkup(<CreateProjectModal isOpen onClose={() => undefined} />);
 };
 
 describe('New project access by role', () => {
-  it('shows a project manager the reviewable Orchestrator setup', () => {
+  it('shows a project manager the reviewable Orchestrator setup in the desktop app', () => {
     const html = render('pm');
     expect(html).toContain('Project name');
     expect(html).toContain('Goal &amp; ground rules');
     for (const shown of ['Build lead: Orchestrator', 'Shared with agents', 'Priority', 'Target date',
       'Set up repositories next', 'Repository URL', 'Attach a local folder', 'You can refine the project after creating it.']) {
       expect(html).toContain(shown);
+    }
+  });
+
+  it('shows a project manager on the hosted web app a plain project form, with no AI setup', () => {
+    const html = render('pm', false);
+    expect(html).toContain('Project name');
+    expect(html).toContain('Name the project and describe what it is for.');
+    for (const hidden of ['Build lead: Orchestrator', 'Shared with agents', 'Set up repositories next', 'Repository URL', 'Attach a local folder']) {
+      expect(html).not.toContain(hidden);
     }
   });
 

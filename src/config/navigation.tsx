@@ -8,6 +8,7 @@ import {
 
 import { NavigationTab, UserRole } from '@/shared/types';
 import { AI_NAV_TABS, CHAT_TAB_ENABLED, aiFeaturesEnabled } from './features';
+import { isDesktop } from '@/shared/desktop';
 
 /**
  * Every fact about a navigation destination, in one place.
@@ -209,25 +210,33 @@ const ROLE_NAV_ALL: Record<UserRole, NavigationTab[]> = {
 };
 
 /**
- * What each role may actually reach: ROLE_NAV_ALL without the AI destinations
- * for a role whose AI features are switched off in `config/features.ts`.
- * Filtering here also stops saved tabs and deep links from opening them.
+ * What each role may actually reach in a given runtime: ROLE_NAV_ALL without
+ * the AI destinations for a role whose AI features are off there
+ * (`config/features.ts`). Filtering here also stops saved tabs and deep links
+ * from opening them.
  */
-export const ROLE_NAV: Record<UserRole, NavigationTab[]> = Object.fromEntries(
-  (Object.entries(ROLE_NAV_ALL) as Array<[UserRole, NavigationTab[]]>).map(([role, tabs]) => [
-    role,
-    (aiFeaturesEnabled(role) ? tabs : tabs.filter(tab => !AI_NAV_TABS.includes(tab)))
-      // The board owns builds while the Chat tab is off; the view itself is kept.
-      .filter(tab => CHAT_TAB_ENABLED || tab !== 'chat')
-  ])
-) as Record<UserRole, NavigationTab[]>;
+export function roleNav(desktopApp: boolean): Record<UserRole, NavigationTab[]> {
+  return Object.fromEntries(
+    (Object.entries(ROLE_NAV_ALL) as Array<[UserRole, NavigationTab[]]>).map(([role, tabs]) => [
+      role,
+      (aiFeaturesEnabled(role, desktopApp) ? tabs : tabs.filter(tab => !AI_NAV_TABS.includes(tab)))
+        // The board owns builds while the Chat tab is off; the view itself is kept.
+        .filter(tab => CHAT_TAB_ENABLED || tab !== 'chat')
+    ])
+  ) as Record<UserRole, NavigationTab[]>;
+}
+
+/** The running app's navigation: desktop or hosted is fixed for the life of the page. */
+export const ROLE_NAV: Record<UserRole, NavigationTab[]> = roleNav(isDesktop);
+const NAV_BY_RUNTIME = { desktop: roleNav(true), web: roleNav(false) };
+const navFor = (desktopApp: boolean) => desktopApp === isDesktop ? ROLE_NAV : NAV_BY_RUNTIME[desktopApp ? 'desktop' : 'web'];
 
 /** The view a role lands on, and falls back to when it opens one it may not. */
-export const landingTab = (role: UserRole): NavigationTab => ROLE_NAV[role][0];
+export const landingTab = (role: UserRole, desktopApp: boolean = isDesktop): NavigationTab => navFor(desktopApp)[role][0];
 
 /** A role's destinations, grouped for the sidebar, empty sections dropped. */
-export function sectionsFor(role: UserRole): Array<{ section: NavSection; items: NavItem[] }> {
-  const allowed = new Set(ROLE_NAV[role]);
+export function sectionsFor(role: UserRole, desktopApp: boolean = isDesktop): Array<{ section: NavSection; items: NavItem[] }> {
+  const allowed = new Set(navFor(desktopApp)[role]);
   const byId = new Map(NAV_SECTIONS.map(section => [section.id, section]));
   return ROLE_SECTION_ORDER[role]
     .map(sectionId => {
@@ -273,7 +282,8 @@ if (import.meta.env.DEV) {
   }
 
   // An entry no role can reach is dead weight, and usually a forgotten ROLE_NAV edit.
-  const reachable = new Set(Object.values(ROLE_NAV).flat());
+  // Reachable in either runtime: a desktop-only destination is not dead on the web.
+  const reachable = new Set([...Object.values(NAV_BY_RUNTIME.desktop), ...Object.values(NAV_BY_RUNTIME.web)].flat());
   for (const item of NAV_ITEMS) {
     if (!reachable.has(item.id)) {
       console.warn(`[navigation] "${item.id}" is defined but no role can reach it.`);

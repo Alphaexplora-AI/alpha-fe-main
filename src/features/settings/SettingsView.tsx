@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { AgentAutonomyLevel } from '@/shared/types';
 import { desktop, isDesktop, type UpdateCheck } from '@/shared/desktop';
+import { aiFeaturesEnabled } from '@/config/features';
 import { GitHubConnectionPanel } from './GitHubConnectionPanel';
 import { McpServersPanel } from './McpServersPanel';
 import { WorkspaceAccessPanel } from './WorkspaceAccessPanel';
@@ -109,10 +110,11 @@ export const SettingsView: React.FC<{ defaultSection?: SettingsSection }> = ({ d
     // code needs it — not just whoever administers the workspace.
     { id: 'integrations', label: 'Connected Accounts', icon: <Plug className="w-4 h-4 text-emerald-400" />, roles: ['dev', 'pm', 'admin'] },
     { id: 'keys', label: 'API Keys Vault', icon: <Key className="w-4 h-4 text-amber-400" />, roles: ['admin'] },
-    { id: 'providers', label: 'Providers', icon: <Server className="w-4 h-4 text-content-secondary" />, roles: ['dev'] },
-    { id: 'autonomy', label: 'Autonomy Governance', icon: <Shield className="w-4 h-4 text-indigo-400" />, roles: ['pm', 'admin'] },
+    { id: 'providers', label: 'Providers', icon: <Server className="w-4 h-4 text-content-secondary" />, roles: ['dev'], ai: true },
+    { id: 'autonomy', label: 'Autonomy Governance', icon: <Shield className="w-4 h-4 text-indigo-400" />, roles: ['pm', 'admin'], ai: true },
   ];
-  const tabs = allTabs.filter(t => t.roles.includes(role));
+  // AI sections follow config/features.ts: a hosted PM has no agents to govern.
+  const tabs = allTabs.filter(t => t.roles.includes(role) && (!t.ai || aiFeaturesEnabled(role)));
 
   // A tab this role may not open resolves to the first one it can, derived
   // rather than stored so no render-time state write is needed.

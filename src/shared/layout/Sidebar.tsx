@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import alphaMarkUrl from '@/assets/alpha-mark.png';
 import { navIcon, navLabel, sectionsFor } from '@/config/navigation';
+import { aiFeaturesEnabled } from '@/config/features';
 import { useApp } from '@/app/AppContext';
 import { NavigationTab, UserRole } from '@/shared/types';
 import { CreateWorkspaceModal } from '@/features/settings/CreateWorkspaceModal';
@@ -460,7 +461,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </>}
           </div>
 
-          {role !== 'client' && <UsageLimitsPopover compact={compact} onNavigate={closeIfFloating} />}
+          {/* Runtime usage is AI tooling: hidden wherever this role's AI features are off. */}
+          {role !== 'client' && aiFeaturesEnabled(role) && <UsageLimitsPopover compact={compact} onNavigate={closeIfFloating} />}
           {renderProfileFooter(compact, closeIfFloating)}
           <CreateWorkspaceModal
             isOpen={createOpen}

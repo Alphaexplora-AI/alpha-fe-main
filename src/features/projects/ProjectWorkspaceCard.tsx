@@ -4,6 +4,7 @@ import { AlertTriangle, Check, Download, FolderInput, FolderMinus, GitBranch, Lo
 import { apiService, parseApiError } from '@/shared/services/apiService';
 import type { RepositoryCheckout } from '@/shared/types';
 import { summarizeCheckouts } from './checkoutSummary';
+import { isDesktop } from '@/shared/desktop';
 
 /**
  * Where each of a project's repositories is, on this machine.
@@ -17,10 +18,6 @@ import { summarizeCheckouts } from './checkoutSummary';
  * Only on a desktop. The web keeps no checkouts, so it shows none of this
  * rather than buttons that cannot work there.
  */
-
-export const isDesktop = Boolean(
-  (window as unknown as { alphaDesktop?: { isDesktop?: boolean } }).alphaDesktop?.isDesktop
-);
 
 const key = (repo: string) => repo.toLowerCase();
 
