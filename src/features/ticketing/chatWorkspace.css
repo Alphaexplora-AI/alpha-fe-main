@@ -1120,10 +1120,18 @@
   }
   /* The request info panel already draws the line between it and the conversation. */
   .client-portal-shell.client-portal-shell--workspace .client-chat-main { border-right: 0; }
-  .client-portal-shell.client-portal-shell--workspace .client-reply-form { border-top: 0; background: rgb(var(--ui-canvas)); }
+  .client-portal-shell.client-portal-shell--workspace .client-reply-form { border-top: 0; }
   .client-portal-shell.client-portal-shell--workspace .role-chat-context__header,
   .client-portal-shell.client-portal-shell--workspace .role-chat-context .role-chat-tools,
   .client-portal-shell.client-portal-shell--workspace .role-chat-context__section { border-bottom: 0; }
   .client-portal-shell.client-portal-shell--workspace .role-chat-context .client-detail-card + .client-detail-card { border-top: 0; }
   .client-portal-shell.client-portal-shell--workspace .role-chat-context__section { padding: var(--client-space-3) 0; }
 }
+
+/* The conversation is one color from the first message to the composer, and it is the
+   page panel's color. The shared chat paints its feed with --ui-well, its frame with
+   --ui-shell and its composer with --ui-surface; in the client portal all three read
+   as separate bands against the panel. */
+.client-portal-shell.client-portal-shell--workspace .client-chat-main .ticket-chat,
+.client-portal-shell.client-portal-shell--workspace .client-chat-main .ticket-chat__feed,
+.client-portal-shell.client-portal-shell--workspace .client-chat-main .client-reply-form { background: rgb(var(--ui-canvas)); }
