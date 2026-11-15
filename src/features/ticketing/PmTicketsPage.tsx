@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { FlaskConical } from 'lucide-react';
-import { useApp } from '@/app/AppContext';
+import { useApp, useTabSessionState } from '@/app/AppContext';
 import { PmTicketsView } from './PmTicketsView';
 import { pmTicketApi } from './pmApi';
 
@@ -15,12 +15,13 @@ const SampleTickets = import.meta.env.DEV
     default: () => <PmTicketsView api={pmPreviewApi} documentsApi={pmPreviewDocumentsApi} communicationEnabled />,
   }))) : null;
 
-/** The PM ticket queue; Inquiries has its own sidebar destination. */
-export function PmTicketsPage() {
-  const [samples, setSamples] = useState(false);
+/**
+ * Which ticket actions this backend offers. Triage until it confirms the
+ * optional Phase 7–9 workflow endpoints. Shared by Tickets and a client's page.
+ */
+export function usePmWorkflowActions(): 'triage' | 'all' {
   const [workflowActions, setWorkflowActions] = useState<'triage' | 'all'>('triage');
   const { activeWorkspace } = useApp();
-
   useEffect(() => {
     let current = true;
     setWorkflowActions('triage');
@@ -32,6 +33,19 @@ export function PmTicketsPage() {
     });
     return () => { current = false; };
   }, [activeWorkspace?.id]);
+  return workflowActions;
+}
+
+/** The ticket queue and intake switch, shared by Tickets and a client's page. */
+export const pmTicketsIntakeEnabled = intakeEnabled;
+
+/** The PM ticket queue; Inquiries has its own sidebar destination. */
+export function PmTicketsPage() {
+  const [samples, setSamples] = useState(false);
+  const workflowActions = usePmWorkflowActions();
+  const { activeWorkspace, setActiveTab } = useApp();
+  const [, setSelectedClient] = useTabSessionState<string | null>('clients.selected', null);
+  const openClient = (key: string) => { setSelectedClient(key); setActiveTab('clients'); };
 
   return <div className="pm-ticket-page pm-ticket-page--nested">
     {SampleTickets && <div className="pm-ticket-page__sample">
@@ -44,7 +58,7 @@ export function PmTicketsPage() {
     <div className="pm-ticket-page__content">
       {samples && SampleTickets
         ? <Suspense fallback={<p role="status" className="p-6 text-xs text-content-secondary">Loading sample tickets…</p>}><SampleTickets /></Suspense>
-        : <PmTicketsView key={activeWorkspace?.id ?? 'no-workspace'} intakeEnabled={intakeEnabled} workflowActions={workflowActions} communicationEnabled />}
+        : <PmTicketsView key={activeWorkspace?.id ?? 'no-workspace'} intakeEnabled={intakeEnabled} workflowActions={workflowActions} communicationEnabled onOpenClient={openClient} />}
     </div>
   </div>;
 }

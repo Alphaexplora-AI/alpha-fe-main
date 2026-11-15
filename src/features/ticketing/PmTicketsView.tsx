@@ -1,7 +1,7 @@
 import { LoadingRows } from '@/shared/components/ui/skeleton';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertCircle, ArrowLeft, Check, ChevronDown, CircleDot, FileText, Info,
+  AlertCircle, ArrowLeft, ArrowUpRight, Check, ChevronDown, CircleDot, FileText, Info,
   LockKeyhole, MessageSquare, PanelLeftOpen, Paperclip, RefreshCw, Search, Send, StickyNote,
   Ticket as TicketIcon, UserRound,
 } from 'lucide-react';
@@ -187,7 +187,7 @@ export function PmContactVerification({ verification }: { verification: unknown 
   return <span className="text-content-muted">Unable to verify status</span>;
 }
 
-export function PmTicketsView({ api = pmTicketApi, documentsApi = pmTicketDocumentsApi, intakeEnabled = true, workflowActions = 'all', communicationEnabled = false, refreshToken }: {
+export function PmTicketsView({ api = pmTicketApi, documentsApi = pmTicketDocumentsApi, intakeEnabled = true, workflowActions = 'all', communicationEnabled = false, refreshToken, fixedClientGroupKey, onOpenClient }: {
   api?: typeof pmTicketApi;
   documentsApi?: TicketDocumentsReadApi;
   intakeEnabled?: boolean;
@@ -197,10 +197,18 @@ export function PmTicketsView({ api = pmTicketApi, documentsApi = pmTicketDocume
   communicationEnabled?: boolean;
   /** Parent-owned refresh control used by the compact Tickets/Inquiries toolbar. */
   refreshToken?: number;
+  /**
+   * Show one client's tickets only, as on that client's page. The client
+   * dropdown is hidden and the attention line counts this client alone.
+   */
+  fixedClientGroupKey?: string;
+  /** Offer "View client" on an open ticket whose client has an account. */
+  onOpenClient?: (clientGroupKey: string) => void;
 } = {}) {
   const [queue, setQueue] = useState<PmTicketQueuePage | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
-  const [clientGroupKey, setClientGroupKey] = useState('');
+  const [chosenClientGroupKey, setClientGroupKey] = useState('');
+  const clientGroupKey = fixedClientGroupKey ?? chosenClientGroupKey;
   const [clientGroups, setClientGroups] = useState<PmTicketClientGroup[]>([]);
   const [clientGroupsLoading, setClientGroupsLoading] = useState(intakeEnabled);
   const [clientGroupsError, setClientGroupsError] = useState('');
@@ -291,7 +299,8 @@ export function PmTicketsView({ api = pmTicketApi, documentsApi = pmTicketDocume
 
   useEffect(() => {
     let current = true;
-    if (!intakeEnabled) {
+    // One client's page has no client dropdown, so there is no list to load.
+    if (!intakeEnabled || fixedClientGroupKey !== undefined) {
       setClientGroups([]); setClientGroupKey(''); setClientGroupsLoading(false); setClientGroupsError('');
       return () => { current = false; };
     }
@@ -306,7 +315,7 @@ export function PmTicketsView({ api = pmTicketApi, documentsApi = pmTicketDocume
       if (current) setClientGroupsLoading(false);
     });
     return () => { current = false; };
-  }, [api, intakeEnabled, refreshVersion]);
+  }, [api, intakeEnabled, refreshVersion, fixedClientGroupKey]);
 
   const loadQueue = useCallback(async () => {
     const generation = ++queueGeneration.current;
@@ -954,7 +963,7 @@ export function PmTicketsView({ api = pmTicketApi, documentsApi = pmTicketDocume
             {filters.map(option => <option key={option.id} value={option.id}>{option.label}{option.counter && queue?.counters.kind === 'pm' ? ` · ${queue.counters[option.counter]}` : ''}</option>)}
           </select>
         </label>}
-        {!selectedId && <label className="pm-tickets__queue-select">
+        {!selectedId && fixedClientGroupKey === undefined && <label className="pm-tickets__queue-select">
           <span className="sr-only">Filter by client</span>
           <select aria-label="Filter by client" value={clientGroupKey}
             disabled={!intakeEnabled || clientGroupsLoading || Boolean(clientGroupsError) || writing || Boolean(pending)}
@@ -995,8 +1004,8 @@ export function PmTicketsView({ api = pmTicketApi, documentsApi = pmTicketDocume
       <div ref={queueElement} className={`pm-tickets__queue${selectedId ? ' pm-tickets__queue--collapsed' : ''}`}>
         <div className="pm-tickets__queue-toolbar">
           <p>{search ? `Results for “${search}”` : queue?.counters.kind === 'pm' && queue.counters.needsPm > 0
-            ? `${queue.counters.needsPm} request${queue.counters.needsPm === 1 ? '' : 's'} need${queue.counters.needsPm === 1 ? 's' : ''} your attention.`
-            : 'Your client requests and their next steps.'}</p>
+            ? `${queue.counters.needsPm} request${queue.counters.needsPm === 1 ? '' : 's'}${fixedClientGroupKey ? ' from this client' : ''} need${queue.counters.needsPm === 1 ? 's' : ''} your attention.`
+            : fixedClientGroupKey ? 'This client’s requests and their next steps.' : 'Your client requests and their next steps.'}</p>
           <span>Open a ticket to continue</span>
         </div>
         <div className="pm-tickets__queue-scroll">
@@ -1159,6 +1168,11 @@ export function PmTicketsView({ api = pmTicketApi, documentsApi = pmTicketDocume
                     {detail.internal.request?.contact && <p className="pm-tickets__context-detail">{detail.internal.request.contact.email}</p>}
                     {detail.companyLabel !== (detail.internal.request?.contact?.fullName ?? selectedQueueItem.internal.clientGroup?.displayName ?? detail.companyLabel) && <p className="pm-tickets__context-detail">{detail.companyLabel}</p>}
                     {detail.internal.request?.contact && <p className="pm-tickets__context-detail"><PmContactVerification verification={detail.internal.request.contact.verification} /></p>}
+                    {onOpenClient && selectedQueueItem.internal.clientGroup?.key.startsWith('client:') && selectedQueueItem.internal.clientGroup.key !== fixedClientGroupKey && (
+                      <button type="button" className="pm-tickets__context-link" onClick={() => onOpenClient(selectedQueueItem.internal.clientGroup!.key)}>
+                        View client <ArrowUpRight size={13} aria-hidden="true" />
+                      </button>
+                    )}
                   </section>
                   <section className="pm-tickets__context-section">
                     <p className="pm-tickets__context-label">Project</p>

@@ -361,6 +361,8 @@
 .pm-tickets__context-value--accent { color: var(--pm-muted); }
 .pm-tickets__context-value--accent svg { flex: none; color: var(--pm-accent); margin-top: 2px; }
 .pm-tickets__context-detail { margin: 0; color: var(--pm-muted); font-size: 11px; line-height: 1.65; overflow-wrap: anywhere; }
+.pm-tickets__context-link { display: inline-flex; min-height: 28px; align-items: center; gap: 4px; margin-top: 4px; padding: 0; border: 0; background: transparent; color: rgb(var(--ui-link)); font-size: 11.5px; font-weight: 600; cursor: pointer; }
+.pm-tickets__context-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .pm-tickets__context-description { color: var(--pm-text); font-size: 12px; line-height: 1.7; }
 
 @media (max-width: 1199px) and (min-width: 768px) {

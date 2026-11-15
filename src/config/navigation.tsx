@@ -3,7 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard, PenLine, FileText, MessageSquare, Activity,
   CheckSquare, FolderKanban, Rocket, Bot, BarChart3, BookOpen, Settings,
-  Inbox, Ticket
+  Inbox, Ticket, Users
 } from 'lucide-react';
 
 import { NavigationTab, UserRole } from '@/shared/types';
@@ -39,6 +39,7 @@ export type SectionId =
   | 'my_work'
   | 'requests'
   | 'projects'
+  | 'clients'
   | 'delivery'
   | 'communication'
   | 'collaboration'
@@ -68,6 +69,7 @@ export const NAV_SECTIONS: NavSection[] = [
   { id: 'my_work', label: 'My Work' },
   { id: 'requests', label: 'Requests' },
   { id: 'projects', label: 'Projects' },
+  { id: 'clients', label: 'Clients' },
   { id: 'delivery', label: 'Delivery' },
   { id: 'communication', label: 'Communication' },
   { id: 'collaboration', label: 'Collaboration' },
@@ -84,7 +86,7 @@ export const NAV_SECTIONS: NavSection[] = [
 const ROLE_SECTION_ORDER: Record<UserRole, SectionId[]> = {
   client: ['portal', 'requests', 'communication', 'documents', 'settings'],
   dev: ['build', 'my_work', 'automation', 'resources', 'communication', 'insights', 'settings'],
-  pm: ['build', 'portal', 'projects', 'delivery', 'collaboration', 'automation', 'resources', 'operations', 'insights', 'workspace'],
+  pm: ['build', 'portal', 'clients', 'projects', 'delivery', 'collaboration', 'automation', 'resources', 'operations', 'insights', 'workspace'],
   admin: ['build', 'portal', 'projects', 'delivery', 'collaboration', 'automation', 'resources', 'operations', 'insights', 'administration']
 };
 
@@ -135,9 +137,11 @@ export const NAV_ITEMS: NavItem[] = [
 
   { id: 'intake', label: 'New request', title: 'New Request', subtitle: 'Describe what you need in plain language', group: 'primary', section: 'requests', icon: PenLine },
 
-  { id: 'tickets', label: 'Tickets', title: 'Tickets', subtitle: 'Review client requests, communicate, and track delivery', group: 'workspace', section: 'delivery', icon: Ticket },
-  { id: 'inquiries', label: 'Inquiries', title: 'Inquiries', subtitle: 'Review and clarify new client inquiries', group: 'workspace', section: 'delivery', icon: Inbox },
-  { id: 'issues', label: 'Tasks', labels: { pm: 'All Tasks', admin: 'All Tasks' }, title: 'Tasks', subtitle: 'Assigned work across your projects', group: 'workspace', section: 'my_work', sectionByRole: { pm: 'delivery', admin: 'delivery' }, icon: CheckSquare },
+  // Client work sits together: who the clients are, every open request across them, and new inquiries.
+  { id: 'clients', label: 'Clients', title: 'Clients', subtitle: 'Clients, their projects and requests', group: 'workspace', section: 'clients', icon: Users },
+  { id: 'tickets', label: 'Tickets', title: 'Tickets', subtitle: 'Review client requests, communicate, and track delivery', group: 'workspace', section: 'clients', icon: Ticket },
+  { id: 'inquiries', label: 'Inquiries', title: 'Inquiries', subtitle: 'Review and clarify new client inquiries', group: 'workspace', section: 'clients', icon: Inbox },
+  { id: 'issues', label: 'Tasks', labels: { pm: 'All Tasks', admin: 'All Tasks' }, title: 'Tasks', subtitle: 'Assigned work across your projects', group: 'workspace', section: 'my_work', sectionByRole: { pm: 'projects', admin: 'projects' }, icon: CheckSquare },
   { id: 'projects', label: 'Projects', labels: { dev: 'Projects', pm: 'All Projects', admin: 'All Projects' }, title: 'Projects & Milestones', subtitle: 'Project roadmap & deliverable progress', group: 'workspace', section: 'my_work', sectionByRole: { pm: 'projects', admin: 'projects' }, icon: FolderKanban },
 
   { id: 'agents', label: 'Agents', labels: { dev: 'Agent Directory' }, title: 'Agent Studio', subtitle: 'Manage personas, models, and autonomy', group: 'configure', section: 'resources', icon: Bot },
@@ -200,7 +204,7 @@ const ROLE_NAV_ALL: Record<UserRole, NavigationTab[]> = {
   client: ['portal', 'intake', 'settings'],
   dev: ['issues', 'projects', 'agents', 'skills', 'chat', 'settings'],
   pm: [
-    'issues', 'projects', 'tickets', 'inquiries',
+    'issues', 'projects', 'clients', 'tickets', 'inquiries',
     'agents', 'skills', 'analytics', 'settings'
   ],
   admin: [

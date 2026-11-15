@@ -43,6 +43,49 @@ export interface PmTicketQueuePage {
   counters: { kind: 'pm'; needsPm: number; inProgress: number; waitingClient: number; closedMonth: number };
 }
 export interface PmTicketClientGroup { key: string; displayName: string }
+/** One client account, from GET /tickets/clients. */
+export interface PmClientSummary {
+  /** `client:<account>`; the queue's clientGroupKey filter takes it as is. */
+  key: string;
+  displayName: string;
+  company: string | null;
+  access: 'active' | 'inactive';
+  tickets: { needsPm: number; waitingClient: number; open: number; closed: number; unlinkedOpen: number; accessRevoked: number };
+  /** Exactly the projects the client portal shows this client. */
+  projects: Array<{ projectId: string; name: string; previewPublished: boolean }>;
+  lastActivityAt: string;
+}
+
+const boundedText = (value: unknown, allowEmpty = false): value is string => typeof value === 'string'
+  && value.length <= 200 && value.trim() === value && (allowEmpty || value.length > 0);
+const countValue = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
+
+/** Parse one client summary, or throw: the page shows nothing it cannot trust. */
+export function parsePmClientSummary(value: unknown): PmClientSummary {
+  const invalid = () => new Error('Client list response is invalid.');
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid();
+  const item = value as Record<string, unknown>;
+  const tickets = item.tickets as Record<string, unknown> | null;
+  if (!boundedText(item.key) || !/^client:\S+$/.test(item.key) || !boundedText(item.displayName)
+    || (item.company !== null && !boundedText(item.company)) || (item.access !== 'active' && item.access !== 'inactive')
+    || typeof item.lastActivityAt !== 'string' || !Number.isFinite(Date.parse(item.lastActivityAt))
+    || !tickets || typeof tickets !== 'object' || !Array.isArray(item.projects)) throw invalid();
+  const counts = ['needsPm', 'waitingClient', 'open', 'closed', 'unlinkedOpen', 'accessRevoked'] as const;
+  if (!counts.every(name => countValue(tickets[name]))) throw invalid();
+  const projectIds = new Set<string>();
+  const projects = item.projects.map(entry => {
+    const project = entry as Record<string, unknown> | null;
+    if (!project || typeof project !== 'object' || !boundedText(project.projectId) || projectIds.has(project.projectId)
+      || !boundedText(project.name) || typeof project.previewPublished !== 'boolean') throw invalid();
+    projectIds.add(project.projectId);
+    return { projectId: project.projectId, name: project.name, previewPublished: project.previewPublished };
+  });
+  return {
+    key: item.key, displayName: item.displayName, company: item.company as string | null, access: item.access,
+    tickets: Object.fromEntries(counts.map(name => [name, tickets[name] as number])) as PmClientSummary['tickets'],
+    projects, lastActivityAt: item.lastActivityAt,
+  };
+}
 export interface PmTicketMessage { id: string; author: 'pm' | 'client'; body: string; createdAt: string }
 export interface PmTicketNote extends PmTicketMessage { authorId: string }
 export interface PmTicketPage<T> { items: T[]; nextCursor: string | null }
@@ -344,6 +387,19 @@ export const pmTicketApi = {
         || group.displayName.length > 200 || keys.has(group.key)) throw new Error('Client list response is invalid.');
       keys.add(group.key);
       return { key: group.key, displayName: group.displayName };
+    });
+  },
+  async listClients(): Promise<PmClientSummary[]> {
+    const value = await apiService.ticketRequest<unknown>('/tickets/clients');
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Client list response is invalid.');
+    const items = (value as Record<string, unknown>).items;
+    if (!Array.isArray(items)) throw new Error('Client list response is invalid.');
+    const keys = new Set<string>();
+    return items.map(item => {
+      const client = parsePmClientSummary(item);
+      if (keys.has(client.key)) throw new Error('Client list response is invalid.');
+      keys.add(client.key);
+      return client;
     });
   },
   get(ticketId: string) {
