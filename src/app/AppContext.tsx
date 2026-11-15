@@ -1,4 +1,4 @@
-import { CHAT_TAB_ENABLED } from '@/config/features';
+import { CHAT_TAB_ENABLED, aiFeaturesEnabled } from '@/config/features';
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ROLE_NAV } from '@/config/navigation';
 import {
@@ -374,7 +374,7 @@ export type Capability =
 
 const KNOWN_ROLES: UserRole[] = ['client', 'dev', 'pm', 'admin'];
 
-const ROLE_CAPABILITIES: Record<UserRole, Capability[]> = {
+const ROLE_CAPABILITIES_ALL: Record<UserRole, Capability[]> = {
   client: ['view_identity', 'view_projects', 'approve_scope', 'submit_intake'],
   dev: [
     'view_identity',
@@ -469,6 +469,21 @@ const ROLE_CAPABILITIES: Record<UserRole, Capability[]> = {
     'manage_operations'
   ]
 };
+
+/** Capabilities that only look at AI tooling; withheld wherever the role's AI features are off. */
+const AI_VIEW_CAPABILITIES: readonly Capability[] = ['view_agents', 'view_skills', 'view_runtimes'];
+
+/**
+ * What each role may do in this runtime. Hiding a tab is not a permission, so a role
+ * whose AI features are off here (a project manager on the hosted web app) also
+ * loses the capabilities that only exist to look at agents, skills and runtimes.
+ */
+const ROLE_CAPABILITIES: Record<UserRole, Capability[]> = Object.fromEntries(
+  (Object.entries(ROLE_CAPABILITIES_ALL) as Array<[UserRole, Capability[]]>).map(([role, capabilities]) => [
+    role,
+    aiFeaturesEnabled(role) ? capabilities : capabilities.filter(capability => !AI_VIEW_CAPABILITIES.includes(capability)),
+  ])
+) as Record<UserRole, Capability[]>;
 
 /**
  * Which destinations each role may reach.

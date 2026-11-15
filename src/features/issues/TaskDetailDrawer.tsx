@@ -40,7 +40,7 @@ interface TaskDetailDrawerProps {
   onAgentDecide?: (id: string, action: 'approve' | 'reject' | 'undo') => void;
 }
 
-type DrawerTab = 'overview' | 'activity' | 'build';
+type DrawerTab = 'overview' | 'build';
 
 const formatDate = (iso: string) => {
   const date = new Date(iso);
@@ -57,10 +57,14 @@ const formatTime = (iso: string) => {
 /**
  * One task, and the one thing to do next with it.
  *
- * The status reads as a track you can click, the next step is chosen for the
- * reader's role, details sit in a plain table, and the description, activity
- * and build each get a tab. The comment box stays at the bottom so a note is
- * never more than a click away.
+ * The board already shows where the task is, so status is one row in the
+ * details table rather than a track. The next step is chosen for the reader's
+ * role and shows only when there is something to do. Comments sit at the end of
+ * the overview, above the comment box.
+ *
+ * Builds run in the desktop app only: the hosted site has no live build data
+ * (run activity is off the cloud channel), so there it shows no Build tab and
+ * no build-driven next step rather than "Build status unavailable".
  */
 export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   issue,
@@ -83,7 +87,10 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const { updateIssue, addIssueComment, can, identity, currentUser, projects, issues } = useApp();
   const ids = useId();
   const canManageIssues = can('manage_issues');
-  const [tab, setTab] = useTabSessionState<DrawerTab>(`${sessionPrefix}.drawerTab`, 'overview');
+  const [savedTab, setTab] = useTabSessionState<DrawerTab>(`${sessionPrefix}.drawerTab`, 'overview');
+  const buildsHere = isDesktop;
+  // A tab saved before Activity was removed, or Build on the web, opens the overview.
+  const tab: DrawerTab = buildsHere && savedTab === 'build' ? 'build' : 'overview';
   const buildTabRef = useRef<HTMLButtonElement>(null);
   const [buildOpenCount, setBuildOpenCount] = useState(0);
   const [newSubtask, setNewSubtask] = useTabSessionState<string>(`${sessionPrefix}.newSubtaskTitle`, '');
@@ -110,17 +117,17 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   // A task with a build under way sits in Building on the board; the track says the same.
   const shownStatus = buildActive && issue.status !== 'done' ? 'agent_running' : issue.status;
   const shownBranch = buildActive ? build?.branchName : issue.branchName;
-  const statusIndex = TASK_STATUSES.findIndex(item => item.id === shownStatus);
   const done = issue.subtasks.filter(subtask => subtask.completed).length;
+  // Off the desktop the step comes from the task's status alone: there is no build data to act on.
   const step = nextStepFor({
     status: issue.status,
-    buildStatus: build?.status,
-    blocker: build?.blocker,
-    fresh: build?.fresh,
-    requestStatus: build?.request?.status,
-    buildActive,
+    buildStatus: buildsHere ? build?.status : undefined,
+    blocker: buildsHere ? build?.blocker : undefined,
+    fresh: buildsHere ? build?.fresh : undefined,
+    requestStatus: buildsHere ? build?.request?.status : undefined,
+    buildActive: buildsHere && buildActive,
     canManageIssues,
-    canStartBuild,
+    canStartBuild: buildsHere && canStartBuild,
     canHandOffToChat: Boolean(onHandOff),
     hasBuildChat: Boolean(onOpenBuildChat)
   });
@@ -136,7 +143,6 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       createdAt: new Date().toISOString()
     });
     setComment('');
-    setTab('activity');
   };
 
   const run = (action: NextStepAction) => {
@@ -154,7 +160,6 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       case 'reopen': onRequestStatus(issue, 'todo'); break;
       case 'request_changes':
         onRequestStatus(issue, 'in_progress');
-        setTab('activity');
         document.getElementById(`${ids}-comment`)?.focus();
         break;
     }
@@ -226,39 +231,9 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           className="mb-4 w-full rounded-md bg-transparent text-xl font-semibold tracking-tight text-content focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         />
 
-        <ol aria-label="Status" className="mb-4 flex">
-          {TASK_STATUSES.map((item, index) => {
-            const past = index < statusIndex;
-            const current = index === statusIndex;
-            return (
-              <li key={item.id} className="min-w-0 flex-1">
-                <button
-                  type="button"
-                  aria-current={current ? 'step' : undefined}
-                  disabled={!canManageIssues || current}
-                  onClick={() => onRequestStatus(issue, item.id)}
-                  title={canManageIssues ? `Move to ${item.label}` : item.label}
-                  className={`group flex w-full flex-col items-start gap-1.5 pr-1.5 text-left text-[11.25px] font-medium disabled:cursor-default ${current ? 'text-content' : past ? 'text-content-secondary' : 'text-content-muted enabled:hover:text-content-secondary'}`}
-                >
-                  <span className="relative flex h-3 w-full items-center">
-                    {index < TASK_STATUSES.length - 1 && (
-                      <span aria-hidden="true" className={`absolute left-3.5 right-[-6px] top-[5.5px] h-px ${past ? 'bg-link' : 'bg-divider'}`} />
-                    )}
-                    <span
-                      aria-hidden="true"
-                      className={`relative z-[1] h-3 w-3 rounded-full border-[1.5px] ${past ? 'border-link bg-link' : current ? 'border-link bg-surface-raised ring-[3px] ring-selected' : 'border-control bg-surface-raised'}`}
-                    >
-                      {current && <span className="absolute inset-[2px] rounded-full bg-link" />}
-                    </span>
-                  </span>
-                  <span className="truncate">{item.label}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ol>
 
-        <div role="status" className="mb-5 flex gap-3 rounded-lg border border-divider bg-surface p-3.5">
+        {/* On the web an advice-only step would point at a Build tab that is not there. */}
+        {(buildsHere || step.primary || step.secondary) && <div role="status" className="mb-5 flex gap-3 rounded-lg border border-divider bg-surface p-3.5">
           <span aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-selected text-link">
             <Sparkles className="h-4 w-4" />
           </span>
@@ -281,9 +256,22 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               </div>
             )}
           </div>
-        </div>
+        </div>}
 
         <dl className="mb-5 grid grid-cols-[110px_minmax(0,1fr)] border-t border-divider text-[12.5px]">
+          <dt className="border-b border-divider py-2 text-content-muted">Status</dt>
+          <dd className="border-b border-divider py-1.5">
+            <label htmlFor={`${ids}-status`} className="sr-only">Status</label>
+            <select
+              id={`${ids}-status`}
+              value={shownStatus}
+              disabled={!canManageIssues}
+              onChange={event => onRequestStatus(issue, event.target.value as IssueStatus)}
+              className="h-7 rounded-md bg-transparent pr-6 text-content-secondary hover:bg-surface-high focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            >
+              {TASK_STATUSES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+            </select>
+          </dd>
           <dt className="border-b border-divider py-2 text-content-muted">Priority</dt>
           <dd className="border-b border-divider py-1.5">
             <label htmlFor={`${ids}-priority`} className="sr-only">Priority</label>
@@ -334,13 +322,12 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           </dd>
         </dl>
 
-        <div role="tablist" aria-label="Task sections" className="mb-4 flex gap-5 border-b border-divider">
+        {buildsHere && <div role="tablist" aria-label="Task sections" className="mb-4 flex gap-5 border-b border-divider">
           {tabButton('overview', 'Overview')}
-          {tabButton('activity', 'Activity', issue.comments.length)}
           {tabButton('build', 'Build')}
-        </div>
+        </div>}
 
-        <div id={`${ids}-panel`} role="tabpanel" aria-labelledby={`${ids}-tab-${tab}`}>
+        <div id={`${ids}-panel`} role={buildsHere ? 'tabpanel' : undefined} aria-labelledby={buildsHere ? `${ids}-tab-${tab}` : undefined}>
           {tab === 'overview' && (
             <div className="space-y-5">
               {(parentTask || childTasks.length > 0) && (
@@ -494,38 +481,38 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   </form>
                 )}
               </section>
-            </div>
-          )}
-
-          {tab === 'activity' && (
-            <>
-            {agentChanges.length > 0 && (
-              <section aria-label="Agent changes" className="mb-4 rounded-lg border border-divider">
-                <p className="px-3 pt-2 text-[11.5px] font-semibold text-content-secondary">Agent changes</p>
-                <AgentChangesList changes={agentChanges} login={identity?.login} busyId={agentDecidingId} onDecide={onAgentDecide} showDetails />
+              <section aria-labelledby={`${ids}-comments-title`} className="border-t border-divider pt-4">
+                <h3 id={`${ids}-comments-title`} className="mb-3 text-[12.5px] font-semibold text-content-secondary">
+                  Comments{issue.comments.length > 0 && <span className="ml-1.5 font-normal tabular-nums text-content-muted">{issue.comments.length}</span>}
+                </h3>
+                {agentChanges.length > 0 && (
+                  <section aria-label="Agent changes" className="mb-4 rounded-lg border border-divider">
+                    <p className="px-3 pt-2 text-[11.5px] font-semibold text-content-secondary">Agent changes</p>
+                    <AgentChangesList changes={agentChanges} login={identity?.login} busyId={agentDecidingId} onDecide={onAgentDecide} showDetails />
+                  </section>
+                )}
+                {issue.comments.length === 0
+                  ? <p className="text-[13px] text-content-muted">No comments yet.</p>
+                  : (
+                    <ol className="space-y-4">
+                      {issue.comments.map(entry => (
+                        <li key={entry.id} className="flex gap-3">
+                          <span aria-hidden="true" className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-surface-high text-content-muted">
+                            {entry.authorType === 'agent' ? <Bot className="h-3 w-3 text-status-info" /> : entry.authorType === 'system' ? <Sparkles className="h-3 w-3" /> : <span className="text-[9px] font-semibold text-content-secondary">{entry.authorName.slice(0, 1).toUpperCase()}</span>}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[12.5px] text-content-muted">
+                              <span className="font-medium text-content">{entry.authorName}</span>
+                              <span className="ml-2 text-[11.25px] tabular-nums">{formatTime(entry.createdAt)}</span>
+                            </p>
+                            <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-content-secondary">{entry.content}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
               </section>
-            )}
-            {issue.comments.length === 0
-              ? <p className="text-[13px] text-content-muted">No activity yet. Comments and agent updates appear here.</p>
-              : (
-                <ol className="space-y-4">
-                  {issue.comments.map(entry => (
-                    <li key={entry.id} className="flex gap-3">
-                      <span aria-hidden="true" className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-surface-high text-content-muted">
-                        {entry.authorType === 'agent' ? <Bot className="h-3 w-3 text-status-info" /> : entry.authorType === 'system' ? <Sparkles className="h-3 w-3" /> : <span className="text-[9px] font-semibold text-content-secondary">{entry.authorName.slice(0, 1).toUpperCase()}</span>}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[12.5px] text-content-muted">
-                          <span className="font-medium text-content">{entry.authorName}</span>
-                          <span className="ml-2 text-[11.25px] tabular-nums">{formatTime(entry.createdAt)}</span>
-                        </p>
-                        <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-content-secondary">{entry.content}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </>
+            </div>
           )}
 
           {tab === 'build' && (

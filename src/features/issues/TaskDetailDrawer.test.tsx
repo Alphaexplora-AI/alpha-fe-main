@@ -6,6 +6,9 @@ import type { Issue } from '@/shared/types';
 vi.hoisted(() => { (globalThis as { window?: unknown }).window ??= globalThis; });
 
 let currentRole: 'dev' | 'pm' = 'dev';
+// Desktop app or hosted web: read on every call, so each test can pick one.
+let desktopApp = true;
+vi.mock('@/shared/desktop', () => ({ get isDesktop() { return desktopApp; }, desktop: undefined }));
 vi.mock('@/app/AppContext', () => ({
   useApp: () => ({
     updateIssue: vi.fn(),
@@ -23,15 +26,16 @@ vi.mock('@/features/runs/AgentRunProgress', () => ({ AgentRunProgress: () => nul
 
 import { TaskDetailDrawer } from './TaskDetailDrawer';
 
-const issue = (status: Issue['status']): Issue => ({
+const issue = (status: Issue['status'], comments: Issue['comments'] = []): Issue => ({
   id: 'i1', identifier: 'WEB-19', title: 'Homepage hero redesign', description: 'Use the darker photo.', status,
-  priority: 'medium', projectId: 'p1', labels: ['frontend'], comments: [], createdAt: '2026-10-21T10:00:00Z', updatedAt: '2026-10-21T10:00:00Z',
+  priority: 'medium', projectId: 'p1', labels: ['frontend'], comments, createdAt: '2026-10-21T10:00:00Z', updatedAt: '2026-10-21T10:00:00Z',
   subtasks: [{ id: 's1', title: 'Shorten the headline', completed: true }, { id: 's2', title: 'Swap the photo', completed: false }]
 });
 
-const render = (status: Issue['status'], handOff: boolean, canStartBuild = true) => renderToStaticMarkup(
-  <TaskDetailDrawer
-    issue={issue(status)}
+const render = (status: Issue['status'], handOff: boolean, canStartBuild = true, { web = false, comments = [] as Issue['comments'] } = {}) => {
+  desktopApp = !web;
+  return renderToStaticMarkup(<TaskDetailDrawer
+    issue={issue(status, comments)}
     sessionPrefix="issues"
     buildActive={false}
     canStartBuild={canStartBuild}
@@ -40,16 +44,28 @@ const render = (status: Issue['status'], handOff: boolean, canStartBuild = true)
     onRequestStatus={() => undefined}
     onPlanBuild={() => undefined}
     onHandOff={handOff ? () => undefined : undefined}
-  />
-);
+  />);
+};
 
 describe('Task details', () => {
-  it('shows the status track, properties and tabs', () => {
+  it('shows status as a details row, with Overview and Build tabs in the desktop app', () => {
     const html = render('todo', false);
-    for (const shown of ['WEB-19', 'Backlog', 'In review', 'Priority', 'Assignee', 'Overview', 'Activity', 'Build', 'Archive task WEB-19', '1 of 2', 'Leave a comment']) {
+    for (const shown of ['WEB-19', 'Status', 'Backlog', 'In review', 'Priority', 'Assignee', 'Overview', 'Build', 'Comments', 'No comments yet.', 'Archive task WEB-19', '1 of 2', 'Leave a comment']) {
       expect(html).toContain(shown);
     }
+    // The board shows where the task is; the drawer has no status track and no Activity tab.
+    expect(html).not.toContain('aria-label="Status"');
+    expect(html).not.toContain('Activity');
     expect(html).not.toContain('Live Build Room');
+  });
+
+  it('shows no build surfaces on the hosted web app, only the task and its comments', () => {
+    const html = render('todo', false, true, {
+      web: true,
+      comments: [{ id: 'c1', authorType: 'user', authorName: 'Ana Cruz', content: 'Client approved the copy.', createdAt: '2026-10-22T09:00:00Z' }],
+    });
+    for (const shown of ['Status', 'Priority', 'Comments', 'Ana Cruz', 'Client approved the copy.', 'Leave a comment']) expect(html).toContain(shown);
+    for (const hidden of ['role="tablist"', '>Build<', 'Build status unavailable', 'Plan build', 'Activity']) expect(html).not.toContain(hidden);
   });
 
   it('hands a task to chat for developers', () => {
@@ -71,6 +87,12 @@ describe('Task details', () => {
 
   it('lets a manager finish or return reviewed work', () => {
     const html = render('review', false);
+    expect(html).toContain('Mark done');
+    expect(html).toContain('Request revisions');
+  });
+
+  it('keeps status-driven next steps on the hosted web app', () => {
+    const html = render('review', false, true, { web: true });
     expect(html).toContain('Mark done');
     expect(html).toContain('Request revisions');
   });
