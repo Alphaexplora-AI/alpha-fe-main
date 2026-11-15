@@ -1,4 +1,4 @@
-import React, { useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { Archive, ArrowUpRight, Bot, ExternalLink, GitBranch, GitPullRequest, MessageSquare, Plus, Send, Sparkles, X } from 'lucide-react';
 import { useApp, useTabSessionState } from '@/app/AppContext';
 import type { BoardAgentChange, Issue, IssuePriority, IssueStatus } from '@/shared/types';
@@ -84,9 +84,17 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const ids = useId();
   const canManageIssues = can('manage_issues');
   const [tab, setTab] = useTabSessionState<DrawerTab>(`${sessionPrefix}.drawerTab`, 'overview');
+  const buildTabRef = useRef<HTMLButtonElement>(null);
+  const [buildOpenCount, setBuildOpenCount] = useState(0);
   const [newSubtask, setNewSubtask] = useTabSessionState<string>(`${sessionPrefix}.newSubtaskTitle`, '');
   const [comment, setComment] = useTabSessionState<string>(`${sessionPrefix}.newComment`, '');
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (!buildOpenCount) return;
+    buildTabRef.current?.focus({ preventScroll: true });
+    buildTabRef.current?.scrollIntoView({ block: 'start', inline: 'nearest' });
+  }, [buildOpenCount]);
 
   const project = projects.find(item => item.id === issue.projectId);
   const projectTasks = issues
@@ -133,7 +141,10 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
   const run = (action: NextStepAction) => {
     switch (action) {
-      case 'open_build': setTab('build'); break;
+      case 'open_build':
+        setTab('build');
+        setBuildOpenCount(count => count + 1);
+        break;
       case 'open_chat': onOpenBuildChat?.(issue); break;
       case 'handoff_chat': onHandOff?.(issue); break;
       case 'plan_build': onPlanBuild(issue); break;
@@ -164,11 +175,12 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     <button
       type="button"
       role="tab"
+      ref={id === 'build' ? buildTabRef : undefined}
       id={`${ids}-tab-${id}`}
       aria-selected={tab === id}
       aria-controls={`${ids}-panel`}
       onClick={() => setTab(id)}
-      className={`relative inline-flex h-9 items-center gap-1.5 text-[13px] font-medium transition-colors ${tab === id ? 'text-content after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full after:bg-link' : 'text-content-muted hover:text-content-secondary'}`}
+      className={`relative inline-flex h-9 scroll-mt-3 items-center gap-1.5 text-[13px] font-medium transition-colors ${tab === id ? 'text-content after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full after:bg-link' : 'text-content-muted hover:text-content-secondary'}`}
     >
       {label}
       {count !== undefined && <span className="text-[11.25px] tabular-nums text-content-muted">{count}</span>}
