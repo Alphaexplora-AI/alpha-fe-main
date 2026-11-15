@@ -3,6 +3,7 @@ export type NavigationTab =
   | 'intake'
   | 'documents'
   | 'chat'
+  | 'clients'
   | 'tickets'
   | 'inquiries'
   | 'issues'

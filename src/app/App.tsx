@@ -32,6 +32,7 @@ import { ClientPortalView } from '@/features/delivery/ClientPortalView';
 import { IntakeWizardView } from '@/features/delivery/IntakeWizardView';
 import { DocumentsView } from '@/features/delivery/DocumentsView';
 import { PmTicketsPage } from '@/features/ticketing/PmTicketsPage';
+import { PmClientsPage } from '@/features/ticketing/PmClientsPage';
 import { PmInquiriesPage } from '@/features/ticketing/PmInquiriesPage';
 import { NavigationTab } from '@/shared/types';
 // Whether this is the packaged desktop app rather than a browser tab, read from
@@ -58,6 +59,7 @@ const WorkspaceTabView: React.FC<{ view: NavigationTab }> = ({ view }) => {
     case 'portal': content = <ClientPortalView />; break;
     case 'intake': content = <IntakeWizardView />; break;
     case 'documents': content = <DocumentsView />; break;
+    case 'clients': content = <PmClientsPage />; break;
     case 'tickets': content = <PmTicketsPage />; break;
     case 'inquiries': content = <PmInquiriesPage />; break;
     case 'chat': content = unifiedChat && chatHistory ? <ChatHistory /> : <ChatView unifiedNavigation={unifiedChat} />; break;

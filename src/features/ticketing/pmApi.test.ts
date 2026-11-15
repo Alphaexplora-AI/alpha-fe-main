@@ -183,3 +183,31 @@ describe('PM ticket transport', () => {
     expect(request).toHaveBeenCalledWith('/tickets/projects/project-1/client-preview/messages?clientId=client-1&limit=20&before=message-0');
   });
 });
+
+describe('PM client list transport', () => {
+  const client = {
+    key: 'client:ana', displayName: 'Ana Cruz', company: null, access: 'active',
+    tickets: { needsPm: 1, waitingClient: 0, open: 2, closed: 0, unlinkedOpen: 0, accessRevoked: 0 },
+    projects: [{ projectId: 'gh-repo-1', name: 'Resort Website', previewPublished: false }],
+    lastActivityAt: '2026-11-15T10:00:00.000Z',
+  };
+  it('reads the client list and keeps only the documented fields', async () => {
+    const request = vi.spyOn(apiService, 'ticketRequest').mockResolvedValue({ items: [{ ...client, email: 'ana@example.test' }] } as never);
+    const result = await pmTicketApi.listClients();
+    expect(request).toHaveBeenCalledWith('/tickets/clients');
+    expect(result).toEqual([client]);
+  });
+  it.each([
+    ['an unverified inquiry key', { ...client, key: 'ticket:t1' }],
+    ['a negative count', { ...client, tickets: { ...client.tickets, open: -1 } }],
+    ['an unknown access state', { ...client, access: 'pending' }],
+    ['a repeated project', { ...client, projects: [client.projects[0], client.projects[0]] }],
+  ])('rejects %s', async (_label, item) => {
+    vi.spyOn(apiService, 'ticketRequest').mockResolvedValue({ items: [item] } as never);
+    await expect(pmTicketApi.listClients()).rejects.toThrow('Client list response is invalid.');
+  });
+  it('rejects a repeated client', async () => {
+    vi.spyOn(apiService, 'ticketRequest').mockResolvedValue({ items: [client, client] } as never);
+    await expect(pmTicketApi.listClients()).rejects.toThrow('Client list response is invalid.');
+  });
+});

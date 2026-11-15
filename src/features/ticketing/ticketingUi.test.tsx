@@ -59,6 +59,10 @@ describe('real ticketing interfaces in the Alpha app', () => {
     expect(html).not.toContain('Workspace inquiry code');
     expect(html).not.toContain('workspace-intake');
   });
+  it('hides the client dropdown when the view is locked to one client', () => {
+    expect(renderToStaticMarkup(<PmTicketsView intakeEnabled />)).toContain('aria-label="Filter by client"');
+    expect(renderToStaticMarkup(<PmTicketsView intakeEnabled fixedClientGroupKey="client:ana" />)).not.toContain('aria-label="Filter by client"');
+  });
   it('lets an enabled inquiry form submit without an external verification widget', () => {
     const html = renderToStaticMarkup(<PublicInquiryForm submissionEnabled onSubmit={() => undefined} onCancel={() => undefined} />);
     expect(html).not.toContain('verification');

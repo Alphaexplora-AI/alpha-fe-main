@@ -21,7 +21,7 @@ const withoutHiddenChat = (tabs: NavigationTab[]) => tabs.filter(tab => CHAT_TAB
 const existing: Record<UserRole, NavigationTab[]> = {
   client: ['portal', 'intake', 'settings'],
   dev: ['issues', 'projects', 'agents', 'skills', 'chat', 'settings'],
-  pm: ['issues', 'projects', 'inquiries', 'agents', 'skills', 'analytics', 'settings'],
+  pm: ['issues', 'projects', 'clients', 'inquiries', 'agents', 'skills', 'analytics', 'settings'],
   admin: ['issues', 'projects', 'agents', 'skills', 'analytics', 'operations', 'settings'],
 };
 /**
@@ -31,8 +31,8 @@ const existing: Record<UserRole, NavigationTab[]> = {
 const existingVisible: Record<UserRole, NavigationTab[]> = {
   client: ['portal', 'intake', 'settings'],
   dev: ['chat', 'issues', 'projects', 'agents', 'skills', 'settings'],
-  pm: ['projects', 'inquiries', 'issues', 'agents', 'skills', 'analytics', 'settings'],
-  admin: ['projects', 'issues', 'agents', 'skills', 'analytics', 'operations', 'settings'],
+  pm: ['clients', 'inquiries', 'issues', 'projects', 'agents', 'skills', 'analytics', 'settings'],
+  admin: ['issues', 'projects', 'agents', 'skills', 'analytics', 'operations', 'settings'],
 };
 describe('existing navigation compatibility', () => {
   it('shows Tasks while preserving the existing issues route identifier', () => {
@@ -156,5 +156,21 @@ describe('AI tooling for project managers is desktop-only', () => {
   });
   it('leaves every other role the same on the web and the desktop', () => {
     for (const role of ['client', 'dev', 'admin'] as const) expect(web[role]).toEqual(desktopNav[role]);
+  });
+});
+
+describe('Clients section for project managers', () => {
+  const ids = (role: UserRole, section: string) => sectionsFor(role).find(group => group.section.id === section)?.items.map(item => item.id) ?? [];
+  it('groups Clients, Tickets and Inquiries, then All Tasks and All Projects', () => {
+    expect(ids('pm', 'clients')).toEqual(['clients', 'tickets', 'inquiries']);
+    expect(ids('pm', 'projects')).toEqual(['issues', 'projects']);
+    expect(sectionsFor('pm').map(group => group.section.id)).not.toContain('delivery');
+  });
+  it('shows Clients on the web and in the desktop app alike: it is not AI tooling', () => {
+    expect(roleNav(false).pm).toContain('clients');
+    expect(roleNav(true).pm).toContain('clients');
+  });
+  it('gives Clients to project managers only', () => {
+    for (const role of ['client', 'dev', 'admin'] as const) expect(ROLE_NAV[role]).not.toContain('clients');
   });
 });
