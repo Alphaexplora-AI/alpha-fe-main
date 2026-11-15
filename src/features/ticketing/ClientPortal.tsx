@@ -1,9 +1,10 @@
 import { EntrySkeleton, LoadingRows } from '@/shared/components/ui/skeleton';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertCircle, ArrowRight, Check, ChevronDown, ChevronLeft, FileText, FolderKanban, House,
+  AlertCircle, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronsUpDown, FileText, FolderKanban, House,
   CircleHelp, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, Ticket,
 } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
 
 import alphaMarkUrl from '@/assets/alpha-mark.png';
 import type {
@@ -102,7 +103,10 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
   useEffect(() => {
     if (!navFloating) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (!clientSidebarRef.current?.contains(event.target as Node)) setClientNavOpen(false);
+      const target = event.target;
+      // Menus opened from the sidebar render outside it (data-sidebar-overlay), like the staff sidebar's.
+      if (clientSidebarRef.current?.contains(target as Node) || (target instanceof Element && target.closest('[data-sidebar-overlay]'))) return;
+      setClientNavOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setClientNavOpen(false); };
     document.addEventListener('pointerdown', onPointerDown);
@@ -652,28 +656,35 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
           <ListChecks size={18} /><span>Requests</span>
         </button>
       </nav>
+      {/* One account row; the guide and sign-out live in its menu, as in the staff sidebar. */}
       <div className="client-sidebar-footer">
-        <div className="client-sidebar-account" role="group"
-          aria-label={`Client account for ${clientName}`}>
-          <span className="client-sidebar-avatar" aria-hidden="true">{clientInitials}</span>
-          <span className="client-sidebar-account-copy">
-            <strong title={clientName}>{clientName}</strong><small>Client</small>
-          </span>
-          <div className="client-sidebar-account-actions">
-            <button type="button" className="client-sidebar-action" aria-label={signingOut ? 'Signing out' : 'Sign out'}
-              title={signingOut ? 'Signing out…' : 'Sign out'} onClick={() => void signOut()}
-              disabled={inspectionOnly || signingOut || Boolean(pending)} aria-busy={signingOut}>
-              <LogOut size={16} />
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <button type="button" className="client-sidebar-account" aria-label={`Account menu for ${clientName}`}>
+              <span className="client-sidebar-avatar" aria-hidden="true">{clientInitials}</span>
+              <span className="client-sidebar-account-copy">
+                <strong title={clientName}>{clientName}</strong><small>Client</small>
+              </span>
+              <ChevronsUpDown size={14} className="client-sidebar-account-chevron" aria-hidden="true" />
             </button>
-          </div>
-        </div>
-        <div className="client-sidebar-help">
-          <button type="button" className="client-sidebar-guide" aria-label="Open client quick guide"
-            title="Client quick guide" onClick={() => setQuickGuideOpen(true)}>
-            <CircleHelp size={17} /><span>Quick guide</span>
-          </button>
-          <span className="client-sidebar-version" aria-label="Client portal version 2.0">2.0</span>
-        </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side={clientNav.open ? 'top' : 'right'} align="start" sideOffset={6} data-sidebar-overlay=""
+            className="w-[min(15rem,calc(100vw-1rem))] rounded-xl p-1.5">
+            <div className="min-w-0 px-2 py-2">
+              <p className="truncate text-[13px] font-medium text-content">{clientName}</p>
+              {clientEmail && <p className="truncate text-[11px] text-content-muted">{clientEmail}</p>}
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="gap-2.5 py-2 text-[13px] text-content-secondary focus:text-content" onSelect={() => setQuickGuideOpen(true)}>
+              <CircleHelp className="h-4 w-4" aria-hidden="true" />Quick guide
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="gap-2.5 py-2 text-[13px] text-content-secondary focus:text-content"
+              disabled={inspectionOnly || signingOut || Boolean(pending)} onSelect={() => void signOut()}>
+              <LogOut className="h-4 w-4" aria-hidden="true" />{signingOut ? 'Signing out…' : 'Log out'}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </aside>
     <ClientQuickGuide isOpen={quickGuideOpen} onClose={() => setQuickGuideOpen(false)} onNavigate={page => {
