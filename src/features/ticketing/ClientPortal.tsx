@@ -817,10 +817,6 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
                     : (detailLoading || (!detail && !detailError)) ? <LoadingRows label="Loading request" layout="detail" className="p-5" />
                       : detailError ? <div role="alert" className="m-4 rounded-lg border border-status-danger-border bg-status-danger-subtle p-4 text-xs text-status-danger">{detailError}</div>
                         : detail && <>
-                          {returnToProjects && <button type="button" className="client-back-link client-ticket-project-back" onClick={() => {
-                            historyGeneration.current += 1; setSelectedId(null); setSelectedWorkspaceId(null); setSelectedItemFallback(null);
-                            setRequestListShown(true); setPage('projects'); setReturnToProjects(false);
-                          }}><ChevronLeft size={15} />Back to project requests</button>}
                           {showPendingLinkNotice && <div role="status" className="client-project-pending-notice">
                             <strong>PM review pending</strong><span>This request is not linked to a project yet. Your project manager must review and confirm the project link before it appears in that project.</span>
                           </div>}
@@ -831,6 +827,7 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
                             busy={writing || Boolean(pending)} error={writeError} replyResetVersion={replyResetVersion}
                             workflowActionsDisabled={workflowActionsDisabled} newRequestsDisabled communicationEnabled={communicationEnabled && !inspectionOnly}
                             readOnlyPreview={inspectionOnly}
+                            backLabel={returnToProjects ? 'Back to project requests' : 'Back to requests'}
                             onBack={() => { historyGeneration.current += 1; setSelectedId(null); setSelectedWorkspaceId(null); setSelectedItemFallback(null);
                               setRequestListShown(true); if (returnToProjects) { setPage('projects'); setReturnToProjects(false); } }}
                             onLoadMore={() => void loadMoreMessages()} onReply={sendReply} onCorrection={sendCorrection} onDecision={makeDecision}

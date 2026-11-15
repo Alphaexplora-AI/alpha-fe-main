@@ -1096,3 +1096,34 @@
     font-size: var(--client-type-meta);
   }
 }
+
+/* Open request: one flat surface. The request list, conversation and request info are
+   split by single vertical lines and sit flush against the page panel's edges; the
+   detail header's bottom line is the only horizontal divider. The extra
+   .client-portal-shell--workspace class outranks the older per-file overrides above
+   and in clientPortal.css, whichever of the two stylesheets loads last. */
+@media (min-width: 768px) {
+  .client-portal-shell.client-portal-shell--workspace.client-portal-shell--chat-open .client-portal-main--workspace { padding: 0; }
+  .client-portal-shell.client-portal-shell--workspace .has-selected-request .client-list-header { border-bottom: 0; }
+  .client-portal-shell.client-portal-shell--workspace .has-selected-request .client-request-items { border-top: 0; padding: 0 var(--client-space-2); }
+  .client-portal-shell.client-portal-shell--workspace .has-selected-request .client-list-footer { border-top: 0; }
+  .client-portal-shell.client-portal-shell--workspace .has-selected-request .client-request-row {
+    min-height: 0;
+    margin-bottom: 2px;
+    padding: var(--client-space-3);
+    border: 0;
+    border-radius: var(--client-radius-control);
+  }
+  .client-portal-shell.client-portal-shell--workspace .has-selected-request .client-request-row.is-selected {
+    background: rgb(var(--ui-selected));
+    box-shadow: none;
+  }
+  /* The request info panel already draws the line between it and the conversation. */
+  .client-portal-shell.client-portal-shell--workspace .client-chat-main { border-right: 0; }
+  .client-portal-shell.client-portal-shell--workspace .client-reply-form { border-top: 0; background: rgb(var(--ui-canvas)); }
+  .client-portal-shell.client-portal-shell--workspace .role-chat-context__header,
+  .client-portal-shell.client-portal-shell--workspace .role-chat-context .role-chat-tools,
+  .client-portal-shell.client-portal-shell--workspace .role-chat-context__section { border-bottom: 0; }
+  .client-portal-shell.client-portal-shell--workspace .role-chat-context .client-detail-card + .client-detail-card { border-top: 0; }
+  .client-portal-shell.client-portal-shell--workspace .role-chat-context__section { padding: var(--client-space-3) 0; }
+}

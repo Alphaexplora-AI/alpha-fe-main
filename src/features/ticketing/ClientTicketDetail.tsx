@@ -28,8 +28,10 @@ export function ClientTicketDetail({
   workspaceId, ticket, messages, messageCursor, historyLoading, historyError, busy, error, replyResetVersion,
   onBack, onLoadMore, onReply, onDecision, onAdditionalWork, onCorrection, api = clientTicketApi,
   documentsApi = clientTicketDocumentsApi, workflowActionsDisabled = false, newRequestsDisabled = true, communicationEnabled = false,
-  defaultTab = 'conversation', readOnlyPreview = false, replyDraft, onReplyDraftChange,
+  defaultTab = 'conversation', readOnlyPreview = false, replyDraft, onReplyDraftChange, backLabel = 'Back to requests',
 }: {
+  /** Names where the header's back button goes, since it is the page's only way back. */
+  backLabel?: string;
   workspaceId: string;
   api?: typeof clientTicketApi;
   documentsApi?: TicketDocumentsApi;
@@ -137,7 +139,7 @@ export function ClientTicketDetail({
   return <section className="client-ticket-detail">
     <header className="client-detail-header">
       <div className="client-detail-heading">
-        <button onClick={onBack} disabled={busy} className="client-detail-back" aria-label="Back to requests"><ArrowLeft size={15} /><span>Back to requests</span></button>
+        <button onClick={onBack} disabled={busy} className="client-detail-back" aria-label={backLabel} title={backLabel}><ArrowLeft size={15} /><span>{backLabel}</span></button>
         <div className="client-detail-title-row">
           <div className="min-w-0">
             <h2 className="client-detail-title">{ticket.title}</h2>

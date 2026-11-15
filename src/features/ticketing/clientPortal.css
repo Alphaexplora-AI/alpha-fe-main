@@ -647,7 +647,6 @@
 .client-icon-action:disabled { opacity: .5; }
 .client-create-view--project { width: min(900px, 100%); margin-inline: auto; }
 .client-create-project-context { padding: 0 clamp(var(--client-space-4), 3vw, 42px); }
-.client-ticket-project-back { min-height: var(--client-control-compact); margin: var(--client-space-2) 14px var(--client-space-1); }
 .client-project-pending-notice { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 10px; margin: 0; padding: 11px 14px; border-left: 2px solid rgb(var(--ui-warning)); background: rgb(var(--ui-warning) / .08); color: var(--cp-muted); font-size: var(--client-type-meta); line-height: var(--client-line-body); }
 .client-project-pending-notice strong { color: rgb(var(--ui-warning)); font-weight: var(--client-weight-semibold); }
 .client-request-project-link { margin: var(--client-space-2) 14px; color: rgb(var(--ui-success)); font-size: var(--client-type-meta); }
@@ -698,7 +697,6 @@
   .client-request-list, .client-request-detail-pane { width: 100%; min-height: 0; }
   .client-request-list.client-mobile-hidden, .client-request-detail-pane.client-mobile-hidden { display: none !important; }
   .client-mobile-heading-hidden { display: none !important; }
-  .client-ticket-project-back { margin-inline: 5px; }
   .client-create-project-context { padding-inline: var(--client-space-1); }
   .client-pending-operation { right: 8px; bottom: 66px; left: 8px; max-width: none; }
 }
@@ -731,8 +729,14 @@
 .client-portal-shell .pqa-mobile-round { display: none; }
 
 @media (min-width: 768px) {
+  /* One 44px chrome row, as in the staff app: the logo and the tabs share it, and the
+     page panel's top line is the only divider, so the logo row has no border of its own. */
   .client-portal-shell .client-sidebar-brand,
-  .client-portal-shell .client-portal-toolbar { height: 72px; min-height: 72px; flex-shrink: 0; }
+  .client-portal-shell.client-portal-shell--workspace .client-portal-toolbar { height: 44px; min-height: 44px; flex-shrink: 0; }
+  /* (4.5rem rail - 30px logo) / 2 keeps the logo centered over the nav icons, open or closed. */
+  .client-portal-shell .client-sidebar-brand { padding: 0 calc((4.5rem - 30px) / 2); border-bottom: 0; }
+  .client-portal-shell .client-sidebar-brand img { width: 30px; height: 30px; }
+  .client-portal-shell.client-portal-shell--workspace .client-portal-toolbar { padding: 6px 20px; }
   .client-portal-shell .client-sidebar-account-copy { display: none; }
   .client-portal-shell .client-sidebar.is-open .client-sidebar-account-copy { display: grid; }
   .client-portal-shell .client-sidebar-account { gap: var(--client-space-1); }
