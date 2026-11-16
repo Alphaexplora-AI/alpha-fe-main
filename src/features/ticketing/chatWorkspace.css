@@ -194,11 +194,12 @@
   .client-portal-shell .client-detail-back { display: none; }
 }
 @media (min-width: 768px) {
-  .client-portal-shell .client-portal-workspace.is-navigation-collapsed { grid-template-columns: 48px minmax(0, 1fr); }
+  /* The 48px rail exists only beside an open request or ticket; see the components. */
+  .client-portal-shell .client-portal-workspace.has-selected-request.is-navigation-collapsed { grid-template-columns: 48px minmax(0, 1fr); }
   .client-portal-shell .client-request-list.is-collapsed > :not(.client-list-header),
   .client-portal-shell .client-request-list.is-collapsed .client-list-header > :not(.role-chat-navigation-toggle) { display: none; }
   .client-portal-shell .client-request-list.is-collapsed .client-list-header { justify-content: center; padding-inline: 0; }
-  .pm-tickets.is-navigation-collapsed { grid-template-columns: 48px minmax(0, 1fr); }
+  .pm-tickets.pm-tickets--ticket-open.is-navigation-collapsed { grid-template-columns: 48px minmax(0, 1fr); }
   .pm-tickets.is-navigation-collapsed .pm-tickets__navigation { padding-inline: 6px; }
   .pm-tickets.is-navigation-collapsed .pm-tickets__navigation > :not(.role-chat-navigation-toggle) { display: none; }
 }

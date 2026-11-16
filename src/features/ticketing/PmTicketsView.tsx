@@ -918,7 +918,9 @@ export function PmTicketsView({ api = pmTicketApi, documentsApi = pmTicketDocume
                   </div>
   ) : null;
 
-  return <div className={`pm-tickets${selectedId ? ' pm-tickets--ticket-open' : ''}${navigationCollapsed ? ' is-navigation-collapsed' : ''}`}>
+  // Collapsing narrows the side list of an open ticket. With no ticket open there is
+  // no side list, so the remembered preference must not shape the page.
+  return <div className={`pm-tickets${selectedId ? ' pm-tickets--ticket-open' : ''}${selectedId && navigationCollapsed ? ' is-navigation-collapsed' : ''}`}>
     {selectedId && <aside className="pm-tickets__navigation" aria-label="Ticket views"
       title="Click empty sidebar space to collapse or expand"
       onClick={event => {

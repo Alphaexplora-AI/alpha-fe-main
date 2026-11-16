@@ -551,7 +551,8 @@
 }
 
 @media (min-width: 768px) {
-  .pm-tickets.is-navigation-collapsed { grid-template-columns: 48px minmax(0, 1fr); }
+  /* Only beside an open ticket, like .pm-inquiries--selected below. */
+  .pm-tickets.pm-tickets--ticket-open.is-navigation-collapsed { grid-template-columns: 48px minmax(0, 1fr); }
   .pm-tickets.is-navigation-collapsed .pm-tickets__navigation { display: flex; align-items: center; padding-inline: 6px; }
   .pm-tickets.is-navigation-collapsed .pm-tickets__navigation > .pm-tickets__compact-filter,
   .pm-tickets.is-navigation-collapsed .pm-tickets__navigation > .pm-tickets__chat-list { display: none !important; }
