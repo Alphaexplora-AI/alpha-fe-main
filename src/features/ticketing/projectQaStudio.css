@@ -69,3 +69,5 @@
   .pqa-mobile-switch { display:flex; gap:8px; }.pqa-workspace[data-mobile=review]>.pqa-preview,.pqa-workspace[data-mobile=preview]>.pqa-review { display:none; }
   .pqa-client .pqa-round-picker { flex:none; }.project-qa-studio :is(button,a) { min-height:40px; }
 }
+/* The side panel holds only the project conversation; this row carries its hide control. */
+.pqa-panel-header { display:flex; justify-content:flex-end; position:sticky; top:0; z-index:1; padding:9px 0 4px; background:rgb(var(--ui-canvas)); }

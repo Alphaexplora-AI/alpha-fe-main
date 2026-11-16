@@ -173,8 +173,6 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ onOpenNewIssue }) =>
     return list;
   }, [projects, issues, statusFilter, priorityFilter, searchQuery, sortBy, sortOrder]);
 
-  const projectIssues = useMemo(() => issues.filter(issue => issue.projectId === selectedProject?.id),
-    [issues, selectedProject?.id]);
 
   // Helper for Circular Progress Ring
   const renderProgressRing = (done: number, total: number) => {
@@ -289,7 +287,6 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ onOpenNewIssue }) =>
         </div>
           )}
           qaStudio={role==='pm'?<PmProjectQaStudio key={`${activeWorkspaceId}:${selectedProject.id}`} projectId={selectedProject.id} projectName={selectedProject.name}
-            issues={projectIssues}
             feedback={clientId=><ProjectClientPreviewPanel key={clientId} projectId={selectedProject.id} canManage={canEditProjects} conversationOnly requestedClientId={clientId}/>}/>:undefined}
           key={selectedProject.id}
           projectId={selectedProject.id}
