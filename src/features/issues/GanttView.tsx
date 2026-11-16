@@ -590,6 +590,7 @@ export const GanttView: React.FC<GanttViewProps> = ({
         {showTimelineLegend && (
           <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[12px] text-content-muted" aria-label="Timeline legend">
             {hasScheduledTasks && <span className="inline-flex items-center gap-2"><span aria-hidden="true" className="h-3 w-4 rounded-[4px] bg-link" />Task duration</span>}
+            {(model.showProjectRow || visibleRows.some(row => row.kind === 'task' && row.isGroup)) && <span className="inline-flex items-center gap-2"><span aria-hidden="true" className="h-2 w-4 rounded-full bg-secondary/70" />Project and parent tasks</span>}
             {hasVisibleMilestones && <span className="inline-flex items-center gap-2"><span aria-hidden="true" className="h-3 w-3 rotate-45 border border-status-warning bg-status-warning-subtle" />Milestone</span>}
             {hasVisibleDeadlines && <span className="inline-flex items-center gap-2"><span aria-hidden="true" className="h-3 w-3 rounded-full border-2 border-status-warning bg-status-warning-subtle" />Task deadline</span>}
             {hasVisibleDependencies && <span className="inline-flex items-center gap-2"><Link2 aria-hidden="true" className="h-4 w-4" />Dependency</span>}
@@ -873,7 +874,7 @@ export const GanttView: React.FC<GanttViewProps> = ({
                               role="img"
                               aria-label={row.title + ' project schedule, ' + dateKey(row.start!) + ' to ' + dateKey(row.end!)}
                               title={row.title + ' · ' + dateLabel(row.start!, { month: 'short', day: 'numeric', year: 'numeric' }) + ' – ' + dateLabel(row.end!, { month: 'short', day: 'numeric', year: 'numeric' })}
-                              className="absolute z-10 h-3.5 rounded-full border border-selected-content/25 bg-gradient-to-r from-selected/80 to-selected"
+                              className="absolute z-10 h-3.5 rounded-full border border-secondary-border bg-secondary/80"
                               style={{ left, width, top: index * ROW_HEIGHT + 21 }}
                             />
                           )}
@@ -907,7 +908,7 @@ export const GanttView: React.FC<GanttViewProps> = ({
                             type="button"
                             onClick={() => onOpenIssue(row.issue.id)}
                             className={'absolute z-10 overflow-hidden border-l-[3px] border-link-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ' +
-                              (row.isGroup ? 'h-3.5 rounded-full bg-gradient-to-r from-selected/65 to-selected' : 'h-6 rounded-md bg-link hover:brightness-110')}
+                              (row.isGroup ? 'h-3.5 rounded-full bg-secondary/70' : 'h-6 rounded-md bg-link hover:brightness-110')}
                             style={{ left, width, top: index * ROW_HEIGHT + (row.isGroup ? 21 : 16) }}
                             title={row.issue.identifier + ' · ' + row.issue.title + '\n' + dateLabel(row.start!, { month: 'short', day: 'numeric', year: 'numeric' }) + ' – ' + dateLabel(row.end!, { month: 'short', day: 'numeric', year: 'numeric' }) + ' · ' + (row.end! - row.start! + 1) + ' ' + (row.end === row.start ? 'day' : 'days')}
                             aria-label={row.issue.identifier + ', ' + row.issue.title + ', ' + dateKey(row.start!) + ' to ' + dateKey(row.end!)}

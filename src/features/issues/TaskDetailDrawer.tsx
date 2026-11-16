@@ -296,7 +296,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           </dd>
           {issue.labels.length > 0 && <>
             <dt className="border-b border-divider py-2 text-content-muted">Labels</dt>
-            <dd className="border-b border-divider py-2 text-content-secondary">{issue.labels.join(', ')}</dd>
+            <dd className="flex flex-wrap gap-1 border-b border-divider py-2">{issue.labels.map(label => <span key={label} className="rounded border border-secondary-border bg-secondary-subtle px-1.5 text-[11px] text-secondary">{label}</span>)}</dd>
           </>}
           {shownBranch && <>
             <dt className="border-b border-divider py-2 text-content-muted">Branch</dt>

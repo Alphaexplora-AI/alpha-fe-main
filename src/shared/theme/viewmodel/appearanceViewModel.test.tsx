@@ -51,8 +51,8 @@ describe('appearance view model',()=>{
 
 describe('appearance view',()=>{
   it('renders all options, exactly one selected choice and accessible immediate actions',()=>{
-    const html=renderToStaticMarkup(<AppearanceView options={THEMES.map(t=>({id:t.id,name:t.name,description:t.description,modeLabel:t.mode,isDefault:t.id==='alpha-violet',selected:t.id==='mist',colors:[t.colors.canvas],preview:{backgroundColor:t.colors.canvas,color:t.colors.textPrimary,borderColor:t.colors.divider},panelColor:t.colors.surface,accent:t.colors.accent,textColor:t.colors.textSecondary}))} selectTheme={async()=>undefined} resetTheme={async()=>undefined} persistenceError={null}/>);
-    expect(html.match(/aria-pressed=/g)).toHaveLength(8);
+    const html=renderToStaticMarkup(<AppearanceView options={THEMES.map(t=>({id:t.id,name:t.name,description:t.description,modeLabel:t.mode,isDefault:t.id==='alpha-violet',selected:t.id==='mist',colors:[t.colors.canvas],preview:{backgroundColor:t.colors.canvas,color:t.colors.textPrimary,borderColor:t.colors.divider},panelColor:t.colors.surface,accent:t.colors.accent,secondary:t.colors.secondary,textColor:t.colors.textSecondary}))} selectTheme={async()=>undefined} resetTheme={async()=>undefined} persistenceError={null}/>);
+    expect(html.match(/aria-pressed=/g)).toHaveLength(9);
     expect(html.match(/aria-pressed="true"/g)).toHaveLength(1);
     expect(html).toContain('Reset to default');expect(html).toContain('Mist, light');
     expect(html).not.toContain('type="submit"');

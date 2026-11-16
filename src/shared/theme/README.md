@@ -1,6 +1,6 @@
 # Appearance: MVVM and shared tokens
 
-Alpha Violet is the default. The eight approved themes are Violet, Slate Blue, Forest, Ember, Pearl, Sand, Graphite and light-blue Mist. Appearance is personal to the current browser profile or desktop profile, applies across chats/workspaces, and does not alter session memory, permissions, agent configuration or preview websites.
+Alpha Violet is the default. The nine approved themes are Violet, Slate Blue, Forest, Ember, Pearl, Sand, Graphite, light-blue Mist and dark-only Ash (charcoal, crimson and silver). Every theme has two accents: `accent` (primary: actions, links, focus, selection) and `secondary` (tags, outline buttons, parent and project bars, charts). Neither carries status meaning. Appearance is personal to the current browser profile or desktop profile, applies across chats/workspaces, and does not alter session memory, permissions, agent configuration or preview websites.
 
 ## Where to change what
 
@@ -26,17 +26,19 @@ The model has no React, DOM, API or AppContext dependency. The view model receiv
 
 Use `bg-canvas`, `bg-shell`, `bg-surface`, `bg-surface-raised`, `bg-well`, `text-content`, `text-content-secondary`, `text-content-muted`, `border-divider`, `border-control`, `bg-action`, `text-on-action`, `text-link`, `bg-selected`, `text-selected-content`, and `focus-visible:ring-focus`.
 
+Use `text-secondary`, `bg-secondary-subtle` and `border-secondary-border` for the second accent.
+
 Use `text-status-success/warning/danger/info` for outcomes, with matching `bg-status-*-subtle` and `border-status-*-border` when needed. Diff/code roles are separate. Decorative separators use divider; control is a stronger boundary for inputs/interactive identification, not every grouping box. Focus rings belong to focus states.
 
 Do not add raw purple/dark/white colors to feature markup. Literal white on a dark action is `on-action`; legacy `text-white` means contrasting page text and must not be used on an action or configured avatar fill. Preserve identity colors, image pixels and the neutral white glow alpha mask. Status meaning never depends on the accent. Existing numeric and color-family utilities are compatibility aliases resolved from the selected palette; new UI should use purpose names.
 
 ## Build and checks
 
-Run `npm run theme:generate` after editing palette data. It validates role completeness, hex data, IDs, core text/action/focus contrasts and emits `generated/themes.css`, `public/theme-startup.js` and `public/theme-manifest.json`. `npm run theme:check` refuses stale generated files, compiles representative Tailwind roles (including the previously missing brand-300), and rejects new raw color literals in feature markup/styles. Dev/build generate automatically; tests check freshness. Commit generated files with their source changes; never hand-edit them.
+Run `npm run theme:generate` after editing palette data. It validates role completeness, hex data, IDs, core text/action/focus contrasts, and layer separation (input borders 3:1; selected rows 1.2:1 light or 1.15:1 dark; links on selected rows 4.5:1; secondary vs muted text 1.4:1; light cards vs page 1.12:1), and emits `generated/themes.css`, `public/theme-startup.js` and `public/theme-manifest.json`. `npm run theme:check` refuses stale generated files, compiles representative Tailwind roles (including the previously missing brand-300), and rejects new raw color literals in feature markup/styles. Dev/build generate automatically; tests check freshness. Commit generated files with their source changes; never hand-edit them.
 
 `model/legacy-color-baseline.json` records existing intentional content/identity/public-branding colors and retained legacy exceptions. This is a text-based ratchet, not a CSS parser or an accessibility audit. Decreasing existing usage passes; new literals require semantic roles or an explicit reviewed baseline change. Do not automatically regenerate the baseline to silence failures. The generator/model owns its intentional color calculations separately.
 
-The manifest discovers each palette through Vite glob imports; adding a palette and its manifest entry automatically adds the picker choice. Required fields and contrast checks still apply. The existing eight-choice acceptance test must be updated deliberately when approving another theme.
+The manifest discovers each palette through Vite glob imports; adding a palette and its manifest entry automatically adds the picker choice. Required fields and contrast checks still apply. The existing nine-choice acceptance test must be updated deliberately when approving another theme.
 
 Vite inlines the generated classic startup script in the head before styles/React. It validates preferences, leaves public branded entries at their intended default, and restores appearance for internal/client workspace routes. ThemeProvider stays mounted across entry changes; body portals inherit the document root. No page reload, scene remount, camera reset or execution restart is used to change appearance.
 

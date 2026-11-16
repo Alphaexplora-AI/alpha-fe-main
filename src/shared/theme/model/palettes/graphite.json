@@ -1,7 +1,7 @@
 {
   "id": "graphite",
   "name": "Graphite",
-  "description": "Medium charcoal · neutral silver",
+  "description": "Medium charcoal · steel blue and coral",
   "mode": "dark",
   "colors": {
     "canvas": "#242426",
@@ -11,16 +11,17 @@
     "high": "#37373C",
     "well": "#19191B",
     "textPrimary": "#F4F4F5",
-    "textSecondary": "#D0D0D5",
-    "textMuted": "#B4B4BF",
-    "accent": "#A1A1AA",
-    "action": "#52525B",
-    "actionHover": "#484850",
-    "link": "#D4D4D8",
-    "linkHover": "#DBDBDE",
-    "focus": "#E4E4E7",
+    "textSecondary": "#D4D4D9",
+    "textMuted": "#A8A8B3",
+    "accent": "#7FA7D9",
+    "secondary": "#F0997B",
+    "action": "#3F6593",
+    "actionHover": "#365882",
+    "link": "#A9C4E8",
+    "linkHover": "#BCD2EE",
+    "focus": "#A9C4E8",
     "divider": "#57575F",
-    "control": "#838385",
+    "control": "#8A8A90",
     "sceneIdle": "#B9B9C3"
   }
 }

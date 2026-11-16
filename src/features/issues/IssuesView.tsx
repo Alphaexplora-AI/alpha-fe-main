@@ -998,7 +998,7 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
                               </span>
                             )}
                             <BuildChip build={issueBuilds[issue.id]} />
-                            {!issueBuilds[issue.id] && issue.labels.find(label => !isEpic([label])) && <span className="truncate">{issue.labels.find(label => !isEpic([label]))}</span>}
+                            {!issueBuilds[issue.id] && issue.labels.find(label => !isEpic([label])) && <span className="truncate rounded border border-secondary-border bg-secondary-subtle px-1.5 text-secondary">{issue.labels.find(label => !isEpic([label]))}</span>}
                             <span className="ml-auto">{getAssigneeVisual(issue)}</span>
                           </span>
                         </button>
@@ -1224,7 +1224,7 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
 
       {pendingBuildIssue && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-          <button type="button" aria-label="Close plan request" disabled={buildSubmitting} className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setPendingBuildIssueId(null)} />
+          <button type="button" aria-label="Close plan request" disabled={buildSubmitting} className="absolute inset-0 bg-overlay/70 backdrop-blur-sm" onClick={() => setPendingBuildIssueId(null)} />
           <div role="dialog" aria-modal="true" aria-labelledby="confirm-build-title" className="relative w-full max-w-md rounded-2xl border border-divider bg-surface-raised p-6 shadow-2xl">
             <div className="flex items-start gap-3">
               <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-selected text-selected-content">
@@ -1258,7 +1258,7 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
       {pendingDoneIssue && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
           <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            className="absolute inset-0 bg-overlay/70 backdrop-blur-sm"
             onClick={() => setPendingDoneIssueId(null)}
           />
           <div

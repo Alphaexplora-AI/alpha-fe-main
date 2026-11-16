@@ -2,7 +2,7 @@ import type manifest from './manifest.json';
 
 export type ThemeId = keyof typeof manifest.themes;
 export type ThemeMode = 'dark' | 'light';
-export type ThemeColorRole = 'canvas' | 'shell' | 'surface' | 'raised' | 'high' | 'well' | 'textPrimary' | 'textSecondary' | 'textMuted' | 'accent' | 'action' | 'actionHover' | 'link' | 'linkHover' | 'focus' | 'divider' | 'control' | 'sceneIdle';
+export type ThemeColorRole = 'canvas' | 'shell' | 'surface' | 'raised' | 'high' | 'well' | 'textPrimary' | 'textSecondary' | 'textMuted' | 'accent' | 'secondary' | 'action' | 'actionHover' | 'link' | 'linkHover' | 'focus' | 'divider' | 'control' | 'sceneIdle';
 export interface ThemeDefinition {
   id: ThemeId;
   name: string;

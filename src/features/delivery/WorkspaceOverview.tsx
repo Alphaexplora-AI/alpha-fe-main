@@ -257,7 +257,7 @@ export const WorkspaceOverview: React.FC = () => {
           <div className="max-w-2xl space-y-2">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-content-muted">
               <span>{roleCopy.eyebrow}</span>
-              <span className="h-1 w-1 rounded-full bg-gray-700" aria-hidden="true" />
+              <span className="h-1 w-1 rounded-full bg-control" aria-hidden="true" />
               <span className="normal-case tracking-normal text-content-secondary">{projectLabel}</span>
             </div>
             <h1 className="text-2xl font-semibold tracking-[-0.03em] text-content sm:text-3xl">{greeting()}, {first}.</h1>
