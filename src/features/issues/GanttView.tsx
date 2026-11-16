@@ -28,7 +28,15 @@ const TASK_COLUMN_WIDTH = 400;
 const MIN_TASK_COLUMN_WIDTH = 320;
 const MAX_TASK_COLUMN_WIDTH = 560;
 const MIN_FIT_DAY_WIDTH = 8;
-const ROW_HEIGHT = 56;
+const ROW_HEIGHT = 44;
+/** Vertical placement inside a row, derived so the row height can change without misaligning anything. */
+const MARK_SIZE = 14;
+const BAR_HEIGHT = 24;
+const MARK_TOP = (ROW_HEIGHT - MARK_SIZE) / 2;
+const BAR_TOP = (ROW_HEIGHT - BAR_HEIGHT) / 2;
+/** Today joins the default range when it is this close to the planned work. */
+const TODAY_WINDOW_DAYS = 60;
+export const UNSCHEDULED_GROUP_ID = '__unscheduled';
 
 interface DateRange {
   start: number;
@@ -38,7 +46,9 @@ interface DateRange {
 type ChartRow =
   | { kind: 'project'; id: string; title: string; start?: number; end?: number; milestoneDay?: number }
   | { kind: 'task'; issue: Issue; start?: number; end?: number; dueDay?: number; depth: number; isGroup: boolean }
-  | { kind: 'milestone'; id: string; title: string; day: number; completed: boolean };
+  | { kind: 'milestone'; id: string; title: string; day: number; completed: boolean }
+  | { kind: 'section'; id: string; title: string; count: number }
+  | { kind: 'unscheduled'; issue: Issue };
 
 interface MonthSegment {
   start: number;
@@ -94,12 +104,27 @@ function mondayOf(day: number): number {
   return day - ((weekday + 6) % 7);
 }
 
-function statusLabel(status: Issue['status']): string {
-  return status.replace('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+/** The default visible range: every planned date, plus today when it is near them, at least one week. */
+export function defaultGanttRange(days: number[], today: number): DateRange {
+  if (!days.length) {
+    const start = mondayOf(today);
+    return { start, end: start + 13 };
+  }
+  const first = Math.min(...days);
+  const last = Math.max(...days);
+  const nearToday = today >= first - TODAY_WINDOW_DAYS && today <= last + TODAY_WINDOW_DAYS;
+  const start = mondayOf(nearToday ? Math.min(first, today) : first);
+  return { start, end: Math.max(last, nearToday ? today : last, start + 6) };
 }
 
-function priorityLabel(priority: Issue['priority']): string {
-  return priority === 'none' ? 'No priority' : priority.replace(/\b\w/g, letter => letter.toUpperCase());
+/** Fit stretches or shrinks the days to fill the chart; otherwise each scale keeps its own day width. */
+export function ganttDayWidth(fit: boolean, baseDayWidth: number, availableWidth: number, dayCount: number): number {
+  if (!fit || dayCount <= 0 || availableWidth <= 0) return baseDayWidth;
+  return Math.max(MIN_FIT_DAY_WIDTH, availableWidth / dayCount);
+}
+
+function statusLabel(status: Issue['status']): string {
+  return status.replace('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase());
 }
 
 function monthSegments(startDay: number, endDay: number): MonthSegment[] {
@@ -134,7 +159,6 @@ export const GanttView: React.FC<GanttViewProps> = ({
   const [fitTimeline, setFitTimeline] = useState(true);
   const [taskColumnWidth, setTaskColumnWidth] = useState(TASK_COLUMN_WIDTH);
   const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
-  const [unscheduledExpanded, setUnscheduledExpanded] = useState(false);
   const timelineRef = useRef<HTMLDivElement>(null);
   const taskColumnResizeStart = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
 
@@ -294,25 +318,26 @@ export const GanttView: React.FC<GanttViewProps> = ({
     }
     rows.push(...bodyRows);
 
-    if (!allDays.length) {
-      return { rows, unscheduled, startDay: undefined, endDay: undefined, showProjectRow };
+    // Work without dates still belongs on the plan: its own group, each task with an empty lane.
+    const placed = new Set(bodyRows.flatMap(row => row.kind === 'task' ? [row.issue.id] : []));
+    const notScheduled = unscheduled.filter(issue => !placed.has(issue.id));
+    if (notScheduled.length) {
+      rows.push({ kind: 'section', id: UNSCHEDULED_GROUP_ID, title: 'Not scheduled', count: notScheduled.length });
+      rows.push(...notScheduled.map(issue => ({ kind: 'unscheduled' as const, issue })));
     }
 
-    const startDay = mondayOf(Math.min(...allDays));
-    const endDay = Math.max(Math.max(...allDays), startDay + 6);
-    return {
-      rows,
-      unscheduled,
-      startDay,
-      endDay,
-      showProjectRow
-    };
+    if (!allDays.length && !notScheduled.length) {
+      return { rows, startDay: undefined, endDay: undefined, showProjectRow };
+    }
+    const range = defaultGanttRange(allDays, todayNumber());
+    return { rows, startDay: range.start, endDay: range.end, showProjectRow };
   }, [issues, project]);
 
   const issueById = useMemo(() => new Map(issues.map(issue => [issue.id, issue])), [issues]);
   const visibleRows = useMemo(() => model.rows.filter(row => {
     if (row.kind === 'project') return true;
     if (project?.id && collapsedGroups.has(project.id)) return false;
+    if (row.kind === 'unscheduled') return !collapsedGroups.has(UNSCHEDULED_GROUP_ID);
     if (row.kind !== 'task') return true;
 
     let parentId = row.issue.parentIssueId;
@@ -339,12 +364,8 @@ export const GanttView: React.FC<GanttViewProps> = ({
     ? Math.min(taskColumnWidth, Math.min(320, Math.max(180, timelineViewportWidth * 0.68)))
     : taskColumnWidth;
   const baseDayWidth = scale === 'days' ? DAY_WIDTH : scale === 'weeks' ? WEEK_DAY_WIDTH : MONTH_DAY_WIDTH;
-  const fitDayWidth = dayCount > 0 && timelineViewportWidth > effectiveTaskColumnWidth
-    ? (timelineViewportWidth - effectiveTaskColumnWidth) / dayCount
-    : baseDayWidth;
-  const dayWidth = fitTimeline
-    ? Math.min(baseDayWidth, Math.max(MIN_FIT_DAY_WIDTH, fitDayWidth))
-    : baseDayWidth;
+  // One pixel of slack so sub-pixel rounding never adds a horizontal scrollbar.
+  const dayWidth = ganttDayWidth(fitTimeline, baseDayWidth, timelineViewportWidth - effectiveTaskColumnWidth - 1, dayCount);
   const timelineWidth = dayCount * dayWidth;
   const plotHeight = Math.max(ROW_HEIGHT, visibleRows.length * ROW_HEIGHT);
   const todayDay = todayNumber();
@@ -400,7 +421,6 @@ export const GanttView: React.FC<GanttViewProps> = ({
     setRangeOpen(false);
     setCollapsedGroups(new Set());
     setFitTimeline(true);
-    setUnscheduledExpanded(false);
   }, [project?.id]);
 
   useEffect(() => {
@@ -709,7 +729,8 @@ export const GanttView: React.FC<GanttViewProps> = ({
                       return (
                         <div
                           key={row.id}
-                          className="flex h-14 items-center gap-2 border-b border-r border-divider bg-surface px-4"
+                          className="flex items-center gap-2 border-b border-r border-divider bg-surface px-4"
+                          style={{ height: ROW_HEIGHT }}
                         >
                           {canCollapse ? (
                             <button
@@ -732,7 +753,8 @@ export const GanttView: React.FC<GanttViewProps> = ({
                       return (
                         <div
                           key={row.id}
-                          className="flex h-14 items-center gap-2 border-b border-r border-divider bg-surface px-5"
+                          className="flex items-center gap-2 border-b border-r border-divider bg-surface px-5"
+                          style={{ height: ROW_HEIGHT }}
                           title={row.title}
                         >
                           <Diamond aria-hidden="true" className={'h-3.5 w-3.5 shrink-0 ' + (row.completed ? 'fill-status-success text-status-success' : 'fill-status-warning text-status-warning')} />
@@ -742,11 +764,57 @@ export const GanttView: React.FC<GanttViewProps> = ({
                       );
                     }
 
+                    if (row.kind === 'section') {
+                      const isCollapsed = collapsedGroups.has(row.id);
+                      return (
+                        <div
+                          key={row.id}
+                          className="flex items-center gap-2 border-b border-r border-divider bg-surface-raised px-4"
+                          style={{ height: ROW_HEIGHT }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleGroup(row.id)}
+                            aria-label={(isCollapsed ? 'Expand' : 'Collapse') + ' tasks without dates'}
+                            aria-expanded={!isCollapsed}
+                            className="grid h-6 w-6 shrink-0 place-items-center rounded text-content-secondary hover:bg-surface-high hover:text-content focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                          >
+                            {isCollapsed ? <ChevronRight aria-hidden="true" className="h-4 w-4" /> : <ChevronDown aria-hidden="true" className="h-4 w-4" />}
+                          </button>
+                          <span className="text-[13px] font-semibold text-content">{row.title}</span>
+                          <span className="rounded-full bg-surface-high px-2 py-0.5 text-[11px] font-medium tabular-nums text-content-secondary">{row.count}</span>
+                        </div>
+                      );
+                    }
+
+                    if (row.kind === 'unscheduled') {
+                      return (
+                        <div
+                          key={row.issue.id}
+                          className="flex items-center gap-2 border-b border-r border-divider bg-surface pr-3"
+                          style={{ height: ROW_HEIGHT, paddingLeft: 50 }}
+                        >
+                          <Circle aria-hidden="true" className="h-2.5 w-2.5 shrink-0 text-content-muted" />
+                          <button
+                            type="button"
+                            onClick={() => onOpenIssue(row.issue.id)}
+                            className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden text-left transition-colors hover:text-link focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                            aria-label={'Open ' + row.issue.identifier + ': ' + row.issue.title}
+                            title={row.issue.identifier + ' · ' + row.issue.title}
+                          >
+                            <span className="shrink-0 font-mono text-[11px] text-content-muted">{row.issue.identifier}</span>
+                            <span className="truncate text-[13px] font-medium text-content">{row.issue.title}</span>
+                          </button>
+                          <span className="shrink-0 rounded-full bg-surface-high px-2 py-0.5 text-[11px] text-content-secondary">{statusLabel(row.issue.status)}</span>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div
                         key={row.issue.id}
-                        className="flex h-14 items-center gap-2 border-b border-r border-divider bg-surface px-3"
-                        style={{ paddingLeft: 32 + row.depth * 18 }}
+                        className="flex items-center gap-2 border-b border-r border-divider bg-surface px-3"
+                        style={{ height: ROW_HEIGHT, paddingLeft: 32 + row.depth * 18 }}
                       >
                         {row.isGroup ? (
                           <button
@@ -770,7 +838,7 @@ export const GanttView: React.FC<GanttViewProps> = ({
                           title={row.issue.identifier + ' · ' + row.issue.title}
                         >
                           <span className="block truncate font-mono text-[11px] leading-[14px] text-content-muted">{row.issue.identifier}</span>
-                          <span className="block overflow-hidden text-[14px] font-medium leading-[17px] text-content [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical]">
+                          <span className="block truncate text-[14px] font-medium leading-[17px] text-content">
                             {row.issue.title}
                           </span>
                         </button>
@@ -843,10 +911,39 @@ export const GanttView: React.FC<GanttViewProps> = ({
                   </svg>
 
                   {visibleRows.map((row, index) => {
+                    if (row.kind === 'section') {
+                      return <div key={row.id} aria-hidden="true" className="absolute inset-x-0 bg-surface-high/40" style={{ top: index * ROW_HEIGHT, height: ROW_HEIGHT - 1 }} />;
+                    }
+
+                    if (row.kind === 'unscheduled') {
+                      // Sit just after the Today line, where new work would usually start.
+                      const laneLeft = Math.max(8, Math.min(timelineWidth - 96, (todayOffset ?? 0) + 8));
+                      return canManageIssues ? (
+                        <button
+                          key={row.issue.id}
+                          type="button"
+                          onClick={() => onOpenIssue(row.issue.id)}
+                          className="absolute z-10 rounded-md border border-dashed border-control px-2.5 text-[11px] font-medium text-link hover:bg-selected focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                          style={{ left: laneLeft, top: index * ROW_HEIGHT + BAR_TOP, height: BAR_HEIGHT }}
+                          aria-label={'Set dates for ' + row.issue.identifier + ': ' + row.issue.title}
+                        >
+                          Set dates
+                        </button>
+                      ) : (
+                        <span
+                          key={row.issue.id}
+                          className="absolute z-10 flex items-center text-[11px] text-content-muted"
+                          style={{ left: laneLeft, top: index * ROW_HEIGHT + BAR_TOP, height: BAR_HEIGHT }}
+                        >
+                          No dates yet
+                        </span>
+                      );
+                    }
+
                     if (row.kind === 'milestone') {
                       const left = (row.day - (visibleStartDay ?? row.day) + 0.5) * dayWidth;
                       return (
-                        <div key={row.id} className="absolute z-10" style={{ left: left - 7, top: index * ROW_HEIGHT + 21 }}>
+                        <div key={row.id} className="absolute z-10" style={{ left: left - 7, top: index * ROW_HEIGHT + MARK_TOP }}>
                           <span
                             role="img"
                             aria-label={row.title + ', ' + (row.completed ? 'completed' : 'milestone') + ' on ' + dateKey(row.day)}
@@ -867,15 +964,26 @@ export const GanttView: React.FC<GanttViewProps> = ({
                       const markerVisible = row.milestoneDay !== undefined &&
                         row.milestoneDay >= (visibleStartDay ?? row.milestoneDay) &&
                         row.milestoneDay <= (visibleEndDay ?? row.milestoneDay);
+                      // A one-day schedule would draw as an empty pill; mark the day instead.
+                      const singleDay = hasSchedule && row.start === row.end;
                       return (
                         <React.Fragment key={row.id}>
-                          {hasSchedule && (
+                          {singleDay && !(markerVisible && row.milestoneDay === row.start) && (
+                            <span
+                              role="img"
+                              aria-label={row.title + ' project date ' + dateKey(row.start!)}
+                              title={row.title + ' · ' + dateLabel(row.start!, { month: 'short', day: 'numeric', year: 'numeric' })}
+                              className="absolute z-20 block h-3.5 w-3.5 rotate-45 border-2 border-surface-raised bg-secondary"
+                              style={{ left: (row.start! - (visibleStartDay ?? row.start!) + 0.5) * dayWidth - 7, top: index * ROW_HEIGHT + MARK_TOP }}
+                            />
+                          )}
+                          {hasSchedule && !singleDay && (
                             <div
                               role="img"
                               aria-label={row.title + ' project schedule, ' + dateKey(row.start!) + ' to ' + dateKey(row.end!)}
                               title={row.title + ' · ' + dateLabel(row.start!, { month: 'short', day: 'numeric', year: 'numeric' }) + ' – ' + dateLabel(row.end!, { month: 'short', day: 'numeric', year: 'numeric' })}
                               className="absolute z-10 h-3.5 rounded-full border border-secondary-border bg-secondary/80"
-                              style={{ left, width, top: index * ROW_HEIGHT + 21 }}
+                              style={{ left, width, top: index * ROW_HEIGHT + MARK_TOP }}
                             />
                           )}
                           {markerVisible && markerLeft !== undefined && (
@@ -884,7 +992,7 @@ export const GanttView: React.FC<GanttViewProps> = ({
                               aria-label={'Project milestone on ' + dateKey(row.milestoneDay!)}
                               title={'Project target · ' + dateLabel(row.milestoneDay!, { month: 'short', day: 'numeric', year: 'numeric' })}
                               className="absolute z-20 block h-3.5 w-3.5 rotate-45 border-2 border-surface-raised bg-status-warning"
-                              style={{ left: markerLeft, top: index * ROW_HEIGHT + 21 }}
+                              style={{ left: markerLeft, top: index * ROW_HEIGHT + MARK_TOP }}
                             />
                           )}
                         </React.Fragment>
@@ -909,7 +1017,7 @@ export const GanttView: React.FC<GanttViewProps> = ({
                             onClick={() => onOpenIssue(row.issue.id)}
                             className={'absolute z-10 overflow-hidden border-l-[3px] border-link-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ' +
                               (row.isGroup ? 'h-3.5 rounded-full bg-secondary/70' : 'h-6 rounded-md bg-link hover:brightness-110')}
-                            style={{ left, width, top: index * ROW_HEIGHT + (row.isGroup ? 21 : 16) }}
+                            style={{ left, width, top: index * ROW_HEIGHT + (row.isGroup ? MARK_TOP : BAR_TOP) }}
                             title={row.issue.identifier + ' · ' + row.issue.title + '\n' + dateLabel(row.start!, { month: 'short', day: 'numeric', year: 'numeric' }) + ' – ' + dateLabel(row.end!, { month: 'short', day: 'numeric', year: 'numeric' }) + ' · ' + (row.end! - row.start! + 1) + ' ' + (row.end === row.start ? 'day' : 'days')}
                             aria-label={row.issue.identifier + ', ' + row.issue.title + ', ' + dateKey(row.start!) + ' to ' + dateKey(row.end!)}
                           />
@@ -920,7 +1028,7 @@ export const GanttView: React.FC<GanttViewProps> = ({
                             aria-label={row.issue.identifier + ' due ' + dateKey(row.dueDay!)}
                             title={row.issue.identifier + ' · Due ' + dateLabel(row.dueDay!, { month: 'short', day: 'numeric', year: 'numeric' })}
                             className={'absolute z-20 h-3.5 w-3.5 rounded-full border-2 border-surface-raised ' + dueColor}
-                            style={{ left: dueLeft, top: index * ROW_HEIGHT + 21 }}
+                            style={{ left: dueLeft, top: index * ROW_HEIGHT + MARK_TOP }}
                           />
                         )}
                       </React.Fragment>
@@ -950,62 +1058,13 @@ export const GanttView: React.FC<GanttViewProps> = ({
                 <CalendarDays aria-hidden="true" className="h-4 w-4" />
               </span>
               <div>
-                <p className="text-[13px] font-semibold text-content">Add dates to build the timeline</p>
-                <p className="mt-1 max-w-xl text-[12px] leading-relaxed text-content-muted">Set a start and end date on a task to place it on the calendar. Unscheduled work stays in the list below until it is ready to plan.</p>
+                <p className="text-[13px] font-semibold text-content">No tasks to plan yet</p>
+                <p className="mt-1 max-w-xl text-[12px] leading-relaxed text-content-muted">Create a task in this project, then give it a start and end date to place it on the timeline.</p>
               </div>
             </div>
           </div>
         )}
 
-        <section aria-labelledby="gantt-unscheduled-title" className="mt-4 overflow-hidden rounded-xl border border-divider">
-          <h2 id="gantt-unscheduled-title" className="border-b border-divider bg-surface-raised">
-            <button
-              type="button"
-              aria-expanded={unscheduledExpanded}
-              aria-controls="gantt-unscheduled-list"
-              onClick={() => setUnscheduledExpanded(expanded => !expanded)}
-              className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left hover:bg-surface-high focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
-            >
-              <span className="flex items-center gap-2 text-[13px] font-semibold text-content">
-                Unscheduled tasks
-                <span className="rounded-full bg-surface-high px-2 py-0.5 text-[11px] font-medium tabular-nums text-content-secondary">{model.unscheduled.length}</span>
-              </span>
-              {unscheduledExpanded
-                ? <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-content-muted" />
-                : <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-content-muted" />}
-            </button>
-          </h2>
-          <div id="gantt-unscheduled-list" hidden={!unscheduledExpanded}>
-            {unscheduledExpanded && (
-              <>
-                <p className="px-3 py-2 text-[11px] text-content-muted">Work without a complete start and end date</p>
-                {model.unscheduled.length === 0 ? (
-                  <p className="px-3 pb-3 text-[12px] text-content-muted">Every task in this project has a start and end date.</p>
-                ) : (
-                  <ul className="divide-y divide-divider">
-                    {model.unscheduled.map(issue => {
-                      const parent = issue.parentIssueId ? issueById.get(issue.parentIssueId) : undefined;
-                      return (
-                        <li key={issue.id}>
-                          <button type="button" onClick={() => onOpenIssue(issue.id)} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left hover:bg-surface-high">
-                            <Circle aria-hidden="true" className="h-3 w-3 shrink-0 text-content-muted" />
-                            <span className="shrink-0 font-mono text-[11px] text-content-muted">{issue.identifier}</span>
-                            <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-content">{issue.title}</span>
-                            {parent && <span className="hidden shrink-0 text-[10.5px] text-content-muted md:inline">Part of {parent.identifier}</span>}
-                            <span className="hidden text-[11px] text-content-muted sm:inline">{issue.assignedHuman || 'Unassigned'}</span>
-                            <span className="rounded-full bg-surface-high px-2 py-0.5 text-[11px] text-content-secondary">{statusLabel(issue.status)}</span>
-                            <span className="hidden text-[11px] text-content-muted md:inline">{priorityLabel(issue.priority)}</span>
-                            {canManageIssues && <span className="text-[11px] font-medium text-link">Set dates</span>}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </>
-            )}
-          </div>
-        </section>
       </main>
     </div>
   );
