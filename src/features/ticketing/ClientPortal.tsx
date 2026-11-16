@@ -763,8 +763,10 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
           </section>
           {queueNotice && <p role="status" className="client-project-pending-notice">{queueNotice}</p>}
           {queueError && <p role="alert" className="client-project-error">{queueError}</p>}
-          <section className={`client-portal-workspace client-portal-workspace--requests ${selectedId ? 'has-selected-request' : ''} ${navigationCollapsed ? 'is-navigation-collapsed' : ''}`} aria-label="Your requests and updates">
-            <aside className={`client-request-list ${navigationCollapsed ? 'is-collapsed' : ''} ${selectedId && !requestListShown ? 'client-mobile-hidden' : ''}`} aria-label="Request list"
+          {/* Collapsing narrows the list beside an open request. With none open the list is
+              the whole page, so the remembered preference must not shrink or empty it. */}
+          <section className={`client-portal-workspace client-portal-workspace--requests ${selectedId ? 'has-selected-request' : ''} ${selectedId && navigationCollapsed ? 'is-navigation-collapsed' : ''}`} aria-label="Your requests and updates">
+            <aside className={`client-request-list ${selectedId && navigationCollapsed ? 'is-collapsed' : ''} ${selectedId && !requestListShown ? 'client-mobile-hidden' : ''}`} aria-label="Request list"
               title={selectedId ? 'Click empty space to collapse or expand request navigation' : undefined}
               onClick={event => {
                 if (!selectedId) return;
