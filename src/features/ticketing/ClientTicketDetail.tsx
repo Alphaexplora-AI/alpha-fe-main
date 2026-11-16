@@ -292,7 +292,7 @@ export function ClientTicketDetail({
       </ChatContextPanel>
     </div>
 
-    {!workflowActionsDisabled && confirming && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setConfirming(null); }}>
+    {!workflowActionsDisabled && confirming && <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/70 p-4" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setConfirming(null); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="client-ticket-confirm-title" className="w-full max-w-md rounded-xl border border-divider bg-surface p-5 shadow-2xl">
         <h2 id="client-ticket-confirm-title" className="text-base font-semibold text-content">{confirming.type === 'accept_delivery' ? 'Accept this exact result?' : 'Agree to this proposed work?'}</h2>
         <p className="mt-2 text-sm leading-relaxed text-content-secondary">{confirming.type === 'accept_delivery' ? 'This records that you accept the shared result. Your project manager will close the request afterwards, and you do not need to do anything else.' : 'This records your agreement to the proposed work. Your project manager still needs to approve and schedule it before work begins.'}</p>

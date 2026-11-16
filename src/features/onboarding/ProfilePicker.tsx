@@ -574,7 +574,7 @@ export const ProfilePicker: React.FC<Props> = ({ identity, identityStatus, onRet
       </div>
 
       {confirm && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4" role="presentation" onClick={() => setConfirm(null)}>
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-overlay/60 p-4" role="presentation" onClick={() => setConfirm(null)}>
           <div
             role="dialog"
             aria-modal="true"

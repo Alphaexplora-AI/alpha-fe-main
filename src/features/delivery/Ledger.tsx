@@ -11,7 +11,7 @@ export const DocStatus: React.FC<{ status: RequirementDocStatus }> = ({ status }
     in_review: { dot: 'bg-amber-400', text: 'text-status-warning', label: 'In review', pulse: true },
     awaiting_client: { dot: 'bg-cyan-400', text: 'text-status-info', label: 'Awaiting client', pulse: true },
     approved: { dot: 'bg-emerald-400', text: 'text-status-success', label: 'Approved' },
-    superseded: { dot: 'bg-gray-700', text: 'text-content-muted', label: 'Superseded' }
+    superseded: { dot: 'bg-control', text: 'text-content-muted', label: 'Superseded' }
   };
   const current = map[status];
   return <span className={`inline-flex items-center gap-2 text-xs ${current.text}`}><Dot color={current.dot} pulse={current.pulse} />{current.label}</span>;

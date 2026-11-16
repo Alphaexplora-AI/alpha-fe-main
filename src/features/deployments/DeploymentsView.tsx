@@ -184,7 +184,7 @@ export const DeploymentsView: React.FC = () => {
               st.status === 'success' ? 'bg-emerald-400' :
               st.status === 'running' ? 'bg-cyan-400 animate-pulse' :
               st.status === 'failed' ? 'bg-rose-400' :
-              'bg-gray-700'
+              'bg-control'
             }`}
           />
         ))}

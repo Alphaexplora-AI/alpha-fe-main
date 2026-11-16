@@ -50,6 +50,8 @@ export default {
         action: {DEFAULT:ui('action'),hover:ui('action-hover')},
         'on-action':ui('on-action'),
         link:{DEFAULT:ui('link'),hover:ui('link-hover')},
+        /** The theme's second accent: tags, outline buttons, bars and charts. Never status meaning. */
+        secondary:{DEFAULT:ui('secondary'),subtle:ui('secondary-subtle'),border:ui('secondary-border')},
         selected:{DEFAULT:ui('selected'),content:ui('selected-content')},
         divider:ui('divider'),control:ui('control'),focus:ui('focus'),
         overlay:ui('overlay'),status,

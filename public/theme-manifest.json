@@ -14,49 +14,56 @@
       "mode": "dark",
       "canvas": "#0D1118",
       "shell": "#111925",
-      "symbol": "#A6B5C8"
+      "symbol": "#BCC8D8"
     },
     "forest": {
       "id": "forest",
       "mode": "dark",
       "canvas": "#0B1210",
       "shell": "#0F1915",
-      "symbol": "#A9BCAF"
+      "symbol": "#C1D0C6"
     },
     "ember": {
       "id": "ember",
       "mode": "dark",
       "canvas": "#15100E",
       "shell": "#1C1512",
-      "symbol": "#C7B6AA"
+      "symbol": "#DBCDC3"
     },
     "pearl": {
       "id": "pearl",
       "mode": "light",
-      "canvas": "#F5F6FA",
-      "shell": "#ECEEF5",
-      "symbol": "#565D73"
+      "canvas": "#EEF0F6",
+      "shell": "#E6E9F1",
+      "symbol": "#444A5E"
     },
     "sand": {
       "id": "sand",
       "mode": "light",
-      "canvas": "#F5F1E9",
-      "shell": "#EBE5D9",
-      "symbol": "#62594E"
+      "canvas": "#EFE9DD",
+      "shell": "#E7E0D2",
+      "symbol": "#4E463C"
     },
     "graphite": {
       "id": "graphite",
       "mode": "dark",
       "canvas": "#242426",
       "shell": "#29292D",
-      "symbol": "#D0D0D5"
+      "symbol": "#D4D4D9"
     },
     "mist": {
       "id": "mist",
       "mode": "light",
-      "canvas": "#EFF6FF",
-      "shell": "#E2EDFC",
-      "symbol": "#425B7A"
+      "canvas": "#E8F1FD",
+      "shell": "#DFEAFB",
+      "symbol": "#314866"
+    },
+    "ash": {
+      "id": "ash",
+      "mode": "dark",
+      "canvas": "#1C1C1F",
+      "shell": "#212124",
+      "symbol": "#D0D0D6"
     }
   }
 }

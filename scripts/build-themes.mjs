@@ -16,11 +16,24 @@ const themes = Object.entries(manifest.themes).map(([id, file]) => {
   const theme = resolveTheme(read(file), modes);
   if (theme.id !== id) throw new Error('Theme ID mismatch');
   const surfaces = ['canvas','shell','surface','raised'];
-  for (const foreground of ['textPrimary','textSecondary','textMuted','link','success','warning','danger','info']) {
+  for (const foreground of ['textPrimary','textSecondary','textMuted','link','secondary','success','warning','danger','info']) {
     for (const background of surfaces) if (contrastRatio(theme.colors[foreground],theme.colors[background]) < 4.5) throw new Error(`${id}: ${foreground}/${background} contrast failed`);
   }
   if (contrastRatio('#FFFFFF',theme.colors.action) < 4.5 || contrastRatio('#FFFFFF',theme.colors.actionHover) < 4.5) throw new Error(`${id}: action label contrast failed`);
   for (const surface of surfaces) if (contrastRatio(theme.colors.focus, theme.colors[surface]) < 3) throw new Error(`${id}: focus contrast failed`);
+  // A palette can pass every text check and still look flat. These keep its layers apart.
+  const light = theme.mode === 'light', c = theme.colors;
+  const separations = [
+    ['input borders', c.control, c.surface, 3],
+    ['selected rows', c.selected, c.canvas, light ? 1.2 : 1.15],
+    ['links on selected rows', c.link, c.selected, 4.5],
+    ['secondary and muted text', c.textSecondary, c.textMuted, 1.4],
+    ...(light ? [['cards on the page', c.surface, c.canvas, 1.12]] : []),
+  ];
+  for (const [what, a, b, minimum] of separations) {
+    const ratio = contrastRatio(a, b);
+    if (ratio < minimum) throw new Error(`${id}: ${what} need ${minimum}:1 contrast, got ${ratio.toFixed(2)}:1`);
+  }
   return theme;
 });
 const rgb = color => rgbChannels(color).replaceAll(',', '');
@@ -45,6 +58,9 @@ function variables(theme) {
   for(const family of ['blue','sky','cyan','teal','emerald','green','lime','amber','yellow','orange','red','rose','pink','fuchsia']) {
     for(const step of steps) vars[`--c-${family}-${step}`] = rgb(standard[family][theme.mode === 'dark' ? step : step <= 400 ? 800 : step <=600 ? 700 : step]);
   }
+  // The second accent: tags, outline buttons, bars and charts. Tinted like the status roles.
+  vars['--ui-secondary-subtle'] = rgb(mixColor(c.surface,c.secondary,theme.mode==='light'?.1:.16));
+  vars['--ui-secondary-border'] = rgb(mixColor(c.surface,c.secondary,.45));
   for(const role of ['success','warning','danger','info']) {
     vars[`--ui-status-${role}`] = rgb(c[role]);
     vars[`--ui-status-${role}-subtle`] = rgb(mixColor(c.surface,c[role],theme.mode==='light'?.07:.1));

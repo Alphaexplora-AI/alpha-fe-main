@@ -1,0 +1,27 @@
+{
+  "id": "ash",
+  "name": "Ash",
+  "description": "Deep charcoal · crimson and silver",
+  "mode": "dark",
+  "colors": {
+    "canvas": "#1C1C1F",
+    "shell": "#212124",
+    "surface": "#28282C",
+    "raised": "#313136",
+    "high": "#2D2D32",
+    "well": "#141416",
+    "textPrimary": "#F4F4F5",
+    "textSecondary": "#D0D0D6",
+    "textMuted": "#A2A2AD",
+    "accent": "#E5484D",
+    "secondary": "#B4B4BE",
+    "action": "#C2272D",
+    "actionHover": "#A82228",
+    "link": "#F48A8D",
+    "linkHover": "#F7A3A5",
+    "focus": "#F48A8D",
+    "divider": "#46464D",
+    "control": "#84848C",
+    "sceneIdle": "#B0B0BA"
+  }
+}

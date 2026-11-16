@@ -629,7 +629,7 @@ export const AgentsView: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           {/* Backdrop Overlay */}
           <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity animate-fade-in"
+            className="fixed inset-0 bg-overlay/80 backdrop-blur-sm transition-opacity animate-fade-in"
             onClick={() => setSelectedAgentId(null)}
           />
 

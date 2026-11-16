@@ -207,7 +207,7 @@ export const CommandPalette: React.FC = () => {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4">
       <div
-        className="fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity animate-fade-in"
+        className="fixed inset-0 bg-overlay/80 backdrop-blur-md transition-opacity animate-fade-in"
         onClick={() => setCommandPaletteOpen(false)}
       />
 

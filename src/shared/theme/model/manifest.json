@@ -9,6 +9,7 @@
     "pearl": "palettes/pearl.json",
     "sand": "palettes/sand.json",
     "graphite": "palettes/graphite.json",
-    "mist": "palettes/mist.json"
+    "mist": "palettes/mist.json",
+    "ash": "palettes/ash.json"
   }
 }

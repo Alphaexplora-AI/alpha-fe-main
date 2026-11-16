@@ -1,5 +1,5 @@
 /** Pure color/model logic shared by the browser and the Node build. No React, IO or application state. */
-export const COLOR_ROLES = ['canvas', 'shell', 'surface', 'raised', 'high', 'well', 'textPrimary', 'textSecondary', 'textMuted', 'accent', 'action', 'actionHover', 'link', 'linkHover', 'focus', 'divider', 'control', 'sceneIdle'];
+export const COLOR_ROLES = ['canvas', 'shell', 'surface', 'raised', 'high', 'well', 'textPrimary', 'textSecondary', 'textMuted', 'accent', 'secondary', 'action', 'actionHover', 'link', 'linkHover', 'focus', 'divider', 'control', 'sceneIdle'];
 const HEX = /^#[0-9a-f]{6}$/i;
 export const rgbChannels = color => color.slice(1).match(/../g).map(part => parseInt(part, 16)).join(', ');
 export function mixColor(from, to, amount) {
@@ -22,7 +22,7 @@ export function resolveTheme(raw, modes) {
   if (keys.some(role => !HEX.test(raw.colors[role]))) throw new Error(`${raw.id}: expected six-digit hex colors`);
   const defaults = modes[raw.mode];
   if (!defaults || Object.keys(defaults).length !== 5 || ['success','warning','danger','info','overlay'].some(role => !HEX.test(defaults[role]))) throw new Error('Invalid shared mode colors');
-  const colors = { ...raw.colors, ...defaults, onAction: '#FFFFFF', selected: mixColor(raw.colors.canvas, raw.colors.accent, raw.mode === 'light' ? .09 : .17), selectedContent: raw.colors.link,
+  const colors = { ...raw.colors, ...defaults, onAction: '#FFFFFF', selected: mixColor(raw.colors.canvas, raw.colors.accent, raw.mode === 'light' ? .14 : .17), selectedContent: raw.colors.link,
     code: raw.colors.well, codeContent: raw.colors.textPrimary,
     diffAdded: mixColor(raw.colors.well, defaults.success, raw.mode === 'light' ? .07 : .09), diffAddedContent: defaults.success,
     diffRemoved: mixColor(raw.colors.well, defaults.danger, raw.mode === 'light' ? .05 : .08), diffRemovedContent: defaults.danger,

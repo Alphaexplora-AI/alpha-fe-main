@@ -9,10 +9,11 @@ import modes from './modes.json';
 import mist from './palettes/mist.json';
 
 describe('theme model',()=>{
-  it('provides the eight reviewed palettes, default violet and genuinely light blue Mist',()=>{
-    expect(THEMES).toHaveLength(8);
+  it('provides the nine reviewed palettes, default violet, genuinely light blue Mist and dark-only Ash',()=>{
+    expect(THEMES).toHaveLength(9);
     expect(getTheme(DEFAULT_THEME_ID).colors.canvas).toBe('#09090B');
-    expect(getTheme('mist')).toMatchObject({mode:'light',colors:{canvas:'#EFF6FF',accent:'#2563EB'}});
+    expect(getTheme('mist')).toMatchObject({mode:'light',colors:{canvas:'#E8F1FD',accent:'#2563EB',secondary:'#A63F22'}});
+    expect(getTheme('ash')).toMatchObject({mode:'dark',colors:{accent:'#E5484D',secondary:'#B4B4BE'}});
     expect(getTheme('graphite').colors.canvas).toBe('#242426');
   });
   it.each([null,undefined,'unknown','__proto__','constructor',{},1])('rejects unknown stored identity %s',value=>{
@@ -20,11 +21,19 @@ describe('theme model',()=>{
   });
   it.each(THEMES)('$id has readable opaque text, action and focus pairs',theme=>{
     for(const surface of ['canvas','shell','surface','raised'] as const){
-      for(const foreground of ['textPrimary','textSecondary','textMuted','link','success','warning','danger','info'] as const) expect(contrastRatio(theme.colors[foreground],theme.colors[surface])).toBeGreaterThanOrEqual(4.5);
+      for(const foreground of ['textPrimary','textSecondary','textMuted','link','secondary','success','warning','danger','info'] as const) expect(contrastRatio(theme.colors[foreground],theme.colors[surface])).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(theme.colors.focus,theme.colors[surface])).toBeGreaterThanOrEqual(3);
     }
     expect(contrastRatio(theme.colors.onAction,theme.colors.action)).toBeGreaterThanOrEqual(4.5);
     expect(theme.scene.background).toBe(theme.colors.shell);
+  });
+  it.each(THEMES)('$id keeps its layers visibly apart',theme=>{
+    const c=theme.colors,light=theme.mode==='light';
+    expect(contrastRatio(c.control,c.surface)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(c.selected,c.canvas)).toBeGreaterThanOrEqual(light?1.2:1.15);
+    expect(contrastRatio(c.link,c.selected)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(c.textSecondary,c.textMuted)).toBeGreaterThanOrEqual(1.4);
+    if(light) expect(contrastRatio(c.surface,c.canvas)).toBeGreaterThanOrEqual(1.12);
   });
   it('fails closed for incomplete palettes and CSS-like color payloads',()=>{
     expect(()=>resolveTheme({...mist,colors:{canvas:'#fff'}},modes)).toThrow();
