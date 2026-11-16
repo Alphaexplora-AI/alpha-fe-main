@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, Edit3, FlaskConical, HelpCircle, Inbox, Pin, PinOff, Plus, RefreshCw, Search, Ticket as TicketIcon, Trash2 } from 'lucide-react';
+import { ChevronDown, Edit3, FlaskConical, HelpCircle, Inbox, Pin, PinOff, Plus, RefreshCw, Search, Ticket as TicketIcon, Trash2, Users } from 'lucide-react';
 import alphaMarkUrl from '@/assets/alpha-mark.png';
 import { Button } from '@/shared/components/ui/button';
 import { navIcon, navLabel, sectionsFor } from '@/config/navigation';
@@ -9,6 +9,10 @@ import { clientPreviewApi } from './clientPreviewApi';
 import ClientPortal from './ClientPortal';
 import { PmTicketsView } from './PmTicketsView';
 import { PmCentralIntakeInbox } from './PmCentralIntakeInbox';
+import { PmClientsWorkspace, type ClientSection } from './PmClientsPage';
+
+const NO_PROJECTS: ReadonlySet<string> = new Set();
+const PREVIEW_PANEL = { tickets: 'ticket', clients: 'client', inquiries: 'inquiry' } as const;
 
 function isPmPreviewRole(value: PreviewRole): boolean {
   return value === 'pm';
@@ -23,7 +27,9 @@ function AlphaPmPreviewShell({ onViewAsClient, onReset }: { onViewAsClient: () =
   const [pinnedOpen, setPinnedOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
-  const [previewSection, setPreviewSection] = useState<'tickets' | 'inquiries'>('tickets');
+  const [previewSection, setPreviewSection] = useState<'tickets' | 'clients' | 'inquiries'>('tickets');
+  const [previewClientKey, setPreviewClientKey] = useState<string | null>(null);
+  const [previewClientSection, setPreviewClientSection] = useState<ClientSection>('overview');
   const [previewRefreshToken, setPreviewRefreshToken] = useState(0);
   const expanded = pinnedOpen || hovered || focused;
   const sections = useMemo(() => sectionsFor('pm'), []);
@@ -116,6 +122,10 @@ function AlphaPmPreviewShell({ onViewAsClient, onReset }: { onViewAsClient: () =
                   onClick={() => setPreviewSection('tickets')} className={`pm-ticket-page__tab${previewSection === 'tickets' ? ' is-active' : ''}`}>
                   <TicketIcon size={15} aria-hidden="true" /><span className="pm-ticket-page__tab-label">Tickets</span>
                 </button>
+                <button id="preview-pm-client-tab" type="button" role="tab" aria-selected={previewSection === 'clients'} aria-pressed={previewSection === 'clients'} aria-controls="preview-pm-client-panel"
+                  onClick={() => setPreviewSection('clients')} className={`pm-ticket-page__tab${previewSection === 'clients' ? ' is-active' : ''}`}>
+                  <Users size={15} aria-hidden="true" /><span className="pm-ticket-page__tab-label">Clients</span>
+                </button>
                 <button id="preview-pm-inquiry-tab" type="button" role="tab" aria-selected={previewSection === 'inquiries'} aria-pressed={previewSection === 'inquiries'} aria-controls="preview-pm-inquiry-panel"
                   onClick={() => setPreviewSection('inquiries')} className={`pm-ticket-page__tab${previewSection === 'inquiries' ? ' is-active' : ''}`}>
                   <Inbox size={15} aria-hidden="true" /><span className="pm-ticket-page__tab-label">Inquiries</span>
@@ -126,8 +136,11 @@ function AlphaPmPreviewShell({ onViewAsClient, onReset }: { onViewAsClient: () =
                   <RefreshCw size={14} aria-hidden="true" /><span>Refresh</span>
                 </Button>
               </div>
-            </nav><div id={previewSection === 'inquiries' ? 'preview-pm-inquiry-panel' : 'preview-pm-ticket-panel'} role="tabpanel"
-              aria-labelledby={previewSection === 'inquiries' ? 'preview-pm-inquiry-tab' : 'preview-pm-ticket-tab'} className="pm-ticket-page__content">{previewSection === 'tickets' ? <PmTicketsView api={pmPreviewApi} documentsApi={pmPreviewDocumentsApi} communicationEnabled refreshToken={previewRefreshToken} />
+            </nav><div id={`preview-pm-${PREVIEW_PANEL[previewSection]}-panel`} role="tabpanel"
+              aria-labelledby={`preview-pm-${PREVIEW_PANEL[previewSection]}-tab`} className="pm-ticket-page__content">{previewSection === 'tickets' ? <PmTicketsView api={pmPreviewApi} documentsApi={pmPreviewDocumentsApi} communicationEnabled refreshToken={previewRefreshToken} />
+              : previewSection === 'clients' ? <PmClientsWorkspace api={pmPreviewApi} documentsApi={pmPreviewDocumentsApi} workspaceKey="preview"
+                selectedKey={previewClientKey} onSelectKey={setPreviewClientKey} section={previewClientSection} onSection={setPreviewClientSection}
+                knownProjectIds={NO_PROJECTS} onOpenProject={() => undefined} onOpenInquiries={() => setPreviewSection('inquiries')} refreshToken={previewRefreshToken} />
               : <PmCentralIntakeInbox workspaceId="preview-workspace" workspaceName="Northstar Demo" workspaceCanReview onAccepted={() => setPreviewSection('tickets')} api={pmPreviewIntakeApi} refreshToken={previewRefreshToken} />}</div></div>
           </div>
         </div>

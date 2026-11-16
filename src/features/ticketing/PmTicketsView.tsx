@@ -34,7 +34,7 @@ import './pmTickets.css';
 type Filter = NonNullable<PmTicketQueueOptions['filter']>;
 type Panel = 'conversation' | 'notes';
 type TicketSection = 'conversation' | 'notes' | 'details' | 'documents';
-type WorkflowActions = 'none' | 'triage' | 'review_scope' | 'all';
+export type WorkflowActions = 'none' | 'triage' | 'review_scope' | 'all';
 type DateRange = 'all' | '7d' | '30d' | 'older';
 type SortOrder = 'updated_desc' | 'updated_asc' | 'created_desc' | 'created_asc';
 interface PendingOperation {
@@ -187,7 +187,8 @@ export function PmContactVerification({ verification }: { verification: unknown 
   return <span className="text-content-muted">Unable to verify status</span>;
 }
 
-export function PmTicketsView({ api = pmTicketApi, documentsApi = pmTicketDocumentsApi, intakeEnabled = true, workflowActions = 'all', communicationEnabled = false, refreshToken, fixedClientGroupKey, onOpenClient }: {
+export function PmTicketsView({ api = pmTicketApi, documentsApi = pmTicketDocumentsApi, intakeEnabled = true, workflowActions = 'all', communicationEnabled = false, refreshToken, fixedClientGroupKey, onOpenClient,
+  initialSelectedId = null }: {
   api?: typeof pmTicketApi;
   documentsApi?: TicketDocumentsReadApi;
   intakeEnabled?: boolean;
@@ -204,6 +205,8 @@ export function PmTicketsView({ api = pmTicketApi, documentsApi = pmTicketDocume
   fixedClientGroupKey?: string;
   /** Offer "View client" on an open ticket whose client has an account. */
   onOpenClient?: (clientGroupKey: string) => void;
+  /** Open this request once the queue has loaded it, as from a client's Overview. */
+  initialSelectedId?: string | null;
 } = {}) {
   const [queue, setQueue] = useState<PmTicketQueuePage | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
@@ -219,7 +222,7 @@ export function PmTicketsView({ api = pmTicketApi, documentsApi = pmTicketDocume
   const lastQueueScope = useRef('');
   const [dateRange, setDateRange] = useState<DateRange>('all');
   const [sortOrder, setSortOrder] = useState<SortOrder>('updated_desc');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId);
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
   const [detail, setDetail] = useState<PmTicketDetail | null>(null);
   const [messages, setMessages] = useState<PmTicketMessage[]>([]);
