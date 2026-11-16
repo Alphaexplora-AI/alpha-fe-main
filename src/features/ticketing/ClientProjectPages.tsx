@@ -268,11 +268,11 @@ export function ClientProjectsPage({ api = clientTicketApi, projects, loading, e
           aria-selected={tab === value} onClick={() => setTab(value)}>{value === 'preview' ? 'Project Review' : value[0].toUpperCase() + value.slice(1)}</button>)}
       </div>
     </div>
-    {tab === 'overview' && <ProjectOverviewTab api={api} project={selectedProject} inspectionOnly={inspectionOnly} refreshToken={refreshToken}
+    {tab === 'overview' && <ProjectOverviewTab api={api} project={selectedProject} refreshToken={refreshToken}
       onOpenRequest={item => onOpenRequest(item)} onShowReview={() => setTab('preview')}
       onShowRequests={filter => { setRequestFilter(filter); setTab('requests'); }} />}
-    {tab === 'preview' && <ClientProjectQaStudio key={clientProjectKey(selectedProject)} workspaceId={selectedProject.workspaceId}
-      projectId={selectedProject.projectId} projectName={selectedProject.name} inspectionOnly={inspectionOnly} refreshToken={refreshToken} feedback={
+    {tab === 'preview' && <ClientProjectQaStudio key={clientProjectKey(selectedProject)}
+      projectName={selectedProject.name} preview={selectedProject.preview} feedback={
       <section className="client-feedback" aria-labelledby={`${idPrefix}-feedback-title`}>
         <div className="client-section-heading"><div><h2 id={`${idPrefix}-feedback-title`}>Project conversation</h2>
           <p>Feedback about this project preview, shared with your project manager.</p></div>

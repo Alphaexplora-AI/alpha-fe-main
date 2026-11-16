@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowRight, CheckCircle2, ChevronRight, ExternalLink, RefreshCw, Search } from 'lucide-react';
 import { LoadingRows, Skeleton } from '@/shared/components/ui/skeleton';
 import type { ClientProject, ClientProjectFeedbackMessage, ClientProjectRequestItem, ClientProjectRequestQueue,
   ClientTicketPage, ClientTicketQueueOptions } from './clientApi';
 import { clientTicketApi, ClientTicketApiError } from './clientApi';
-import { clientProjectQaApi } from './clientProjectQaApi';
-import type { QaRound, QaRoundPage, QaRoundSummary } from './projectQaApi';
 import { clientTicketProgress } from './clientTicketProgress';
 import { time } from './ticketUi';
 
@@ -173,52 +171,35 @@ export function ProjectRequestsTab({ api, project, refreshToken, filter, onFilte
   </section>;
 }
 
-const ROUND_LABEL: Record<QaRoundSummary['status'], string> = {
-  draft: 'Draft', published: 'Ready to test', submitted: 'Submitted', withdrawn: 'Withdrawn', superseded: 'Replaced',
-};
 type Activity = { id: string; at: string; title: string; detail: string; open: () => void };
 
-export function ProjectOverviewTab({ api, project, inspectionOnly, refreshToken, onOpenRequest, onShowRequests, onShowReview }: {
-  api: Api; project: ClientProject; inspectionOnly: boolean; refreshToken: number;
+export function ProjectOverviewTab({ api, project, refreshToken, onOpenRequest, onShowRequests, onShowReview }: {
+  api: Api; project: ClientProject; refreshToken: number;
   onOpenRequest: (item: ClientProjectRequestItem) => void; onShowRequests: (filter: ProjectRequestFilter) => void;
   onShowReview: () => void;
 }) {
   const key = clientProjectKey(project);
   const requests = useScopedLoad<ClientProjectRequestQueue>(key,
     () => api.listProjectRequests(project.workspaceId, project.projectId, { limit: 100, filter: 'all' }), refreshToken);
-  const rounds = useScopedLoad<QaRoundPage>(key, inspectionOnly ? async () => ({ items: [], nextBefore: null })
-    : () => clientProjectQaApi.list(project.workspaceId, project.projectId), refreshToken);
   const messages = useScopedLoad<ClientTicketPage<ClientProjectFeedbackMessage>>(key,
     () => api.getProjectFeedbackMessages(project.workspaceId, project.projectId, { limit: 20 }), refreshToken);
-  const roundList = useMemo(() => [...(rounds.data?.items ?? [])].filter(round => round.status !== 'draft')
-    .sort((a, b) => b.number - a.number), [rounds.data]);
-  const latestSummary = roundList[0] ?? null;
-  const latest = useScopedLoad<QaRound>(latestSummary ? key + latestSummary.id : key,
-    latestSummary ? () => clientProjectQaApi.get(project.workspaceId, project.projectId, latestSummary.id) : null, refreshToken);
 
   const items = requests.data?.items ?? [];
   const attention = items.filter(needsClient);
   const inProgress = items.filter(item => item.status === 'in_progress').length;
   const completed = items.filter(item => item.status === 'closed').length;
-  const reviewDue = roundList.find(round => round.status === 'published') ?? null;
   const latestPm = [...(messages.data?.items ?? [])].reverse().find(message => message.author === 'pm') ?? null;
-  const tested = latest.data?.items.filter(item => item.result.status !== 'not_tested').length ?? 0;
-  const checks = latest.data?.items.length ?? 0;
 
   const activity: Activity[] = [
     ...[...items].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)).slice(0, 6).map(item => ({
       id: 'r' + item.id, at: item.updatedAt, title: item.title,
       detail: item.projectLinkStatus === 'pending_review' ? 'Waiting to be added to this project'
         : clientTicketProgress(item.status, item.requestedAction).label, open: () => onOpenRequest(item) })),
-    ...roundList.flatMap(round => [
-      round.publishedAt ? { id: 'p' + round.id, at: round.publishedAt, title: `Review ${round.number} shared for testing`, detail: round.title, open: onShowReview } : null,
-      round.submittedAt ? { id: 's' + round.id, at: round.submittedAt, title: `You submitted Review ${round.number}`, detail: round.title, open: onShowReview } : null,
-    ].filter((entry): entry is Activity => entry !== null)),
     ...(messages.data?.items ?? []).slice(-4).map(message => ({
       id: 'm' + message.id, at: message.createdAt, title: message.author === 'pm' ? 'Your project manager wrote' : 'You wrote',
       detail: message.body, open: onShowReview })),
   ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, 6);
-  const activityPending = requests.pending || rounds.pending || messages.pending;
+  const activityPending = requests.pending || messages.pending;
 
   const stat = (value: number, label: string, filter: ProjectRequestFilter, emphasis = false) =>
     <button type="button" className={emphasis && value > 0 ? 'is-attention' : undefined} onClick={() => onShowRequests(filter)}>
@@ -235,15 +216,10 @@ export function ProjectOverviewTab({ api, project, inspectionOnly, refreshToken,
       <div className="client-overview-main">
         <section className="client-overview-panel is-highlight" aria-labelledby="client-proj-attention-title">
           <div className="client-section-heading"><div><h2 id="client-proj-attention-title">Needs your attention</h2>
-            <p>Decisions, replies, and reviews waiting on you.</p></div></div>
-          {requests.pending || rounds.pending ? <LoadingRows label="Loading items that need you" layout="detail" rows={1} className="px-5" />
-            : !attention.length && !reviewDue ? <p className="client-section-state is-clear"><CheckCircle2 size={16} aria-hidden />You’re all caught up on this project.</p>
+            <p>Decisions and replies waiting on you.</p></div></div>
+          {requests.pending ? <LoadingRows label="Loading items that need you" layout="detail" rows={1} className="px-5" />
+            : !attention.length ? <p className="client-section-state is-clear"><CheckCircle2 size={16} aria-hidden />You’re all caught up on this project.</p>
               : <div className="client-activity-list">
-                {reviewDue && <button type="button" className="client-activity-row" onClick={onShowReview}>
-                  <span className="client-activity-copy"><strong>{`Review ${reviewDue.number} is ready to test`}</strong><small>{reviewDue.title}</small></span>
-                  <span className="client-status is-waiting">Test now</span>
-                  {reviewDue.publishedAt ? <time dateTime={reviewDue.publishedAt}>{time(reviewDue.publishedAt)}</time> : <span />}
-                  <ArrowRight size={15} aria-hidden /></button>}
                 {attention.map(item => <button key={item.id} type="button" className="client-activity-row" onClick={() => onOpenRequest(item)}>
                   <span className="client-activity-copy"><strong>{item.title}</strong><small>{clientTicketProgress(item.status, item.requestedAction).label}</small></span>
                   <StatusPill status={item.status} requestedAction={item.requestedAction} />
@@ -253,7 +229,7 @@ export function ProjectOverviewTab({ api, project, inspectionOnly, refreshToken,
         </section>
         <section className="client-overview-panel" aria-labelledby="client-proj-activity-title">
           <div className="client-section-heading"><div><h2 id="client-proj-activity-title">Recent activity</h2>
-            <p>Latest updates across requests, reviews, and messages.</p></div>
+            <p>Latest updates across requests and messages.</p></div>
             <button type="button" className="client-text-action" onClick={() => onShowRequests('all')}>All requests <ArrowRight size={15} /></button></div>
           {activityPending && !activity.length ? <LoadingRows label="Loading recent activity" layout="table" rows={4} />
             : activity.length ? <div className="client-proj-activity">{activity.map(entry => <button key={entry.id} type="button" onClick={entry.open}>
@@ -264,22 +240,12 @@ export function ProjectOverviewTab({ api, project, inspectionOnly, refreshToken,
       </div>
       <aside className="client-overview-rail">
         <section className="client-overview-panel" aria-labelledby="client-proj-review-title">
-          <div className="client-section-heading"><div><h2 id="client-proj-review-title">Latest review</h2>
-            <p>Builds your project manager shared for testing.</p></div></div>
-          {rounds.pending ? <LoadingRows label="Loading review rounds" layout="detail" rows={2} />
-            : rounds.error ? <p role="alert" className="client-project-error">{projectLoadError(rounds.error, 'review')}</p>
-              : !latestSummary ? <p className="client-section-state">No review shared yet. When a build is ready to test, it appears here.</p>
-                : <div className="client-proj-review">
-                  <div className="client-proj-review-title"><strong>{`Review ${latestSummary.number}`} · {latestSummary.title}</strong>
-                    <span className={`client-status ${latestSummary.status === 'published' ? 'is-waiting' : latestSummary.status === 'submitted' ? 'is-active' : 'is-neutral'}`}>{ROUND_LABEL[latestSummary.status]}</span></div>
-                  {latest.pending ? <Skeleton className="h-1.5 w-full" /> : checks > 0 && <>
-                    <div className="client-proj-progress" aria-hidden="true"><span style={{ width: `${Math.round((tested / checks) * 100)}%` }} /></div>
-                    <small>{tested} of {checks} checks tested</small></>}
-                  <button type="button" className="client-text-action" onClick={onShowReview}>
-                    {latestSummary.status === 'published' ? (tested ? 'Continue review' : 'Start review') : 'View review'} <ArrowRight size={15} /></button>
-                  {roundList.slice(1, 3).map(round => <p key={round.id} className="client-proj-earlier">
-                    <span>{`Review ${round.number}`} · {round.title}</span><span>{ROUND_LABEL[round.status]}</span></p>)}
-                </div>}
+          <div className="client-section-heading"><div><h2 id="client-proj-review-title">Project preview</h2>
+            <p>The build your project manager shared with you.</p></div></div>
+          {project.preview ? <div className="client-proj-review">
+            <p className="client-section-state">Try the latest build and send your project manager any feedback.</p>
+            <button type="button" className="client-text-action" onClick={onShowReview}>Open Project Review <ArrowRight size={15} /></button>
+          </div> : <p className="client-section-state">No preview shared yet. When a build is ready to try, it appears here.</p>}
         </section>
         <section className="client-overview-panel" aria-labelledby="client-proj-message-title">
           <div className="client-section-heading"><div><h2 id="client-proj-message-title">From your project manager</h2>
@@ -294,10 +260,9 @@ export function ProjectOverviewTab({ api, project, inspectionOnly, refreshToken,
         <section className="client-overview-panel" aria-labelledby="client-proj-details-title">
           <div className="client-section-heading"><div><h2 id="client-proj-details-title">Project details</h2></div></div>
           <dl className="client-proj-details">
-            <div><dt>Preview</dt><dd>{project.preview ? <a href={project.preview.url} target="_blank" rel="noopener noreferrer">UAT build <ExternalLink size={12} aria-hidden /></a> : 'Not shared yet'}</dd></div>
+            <div><dt>Preview</dt><dd>{project.preview ? <a href={project.preview.url} target="_blank" rel="noopener noreferrer">Open preview <ExternalLink size={12} aria-hidden /></a> : 'Not shared yet'}</dd></div>
             <div><dt>Last updated</dt><dd>{time(project.updatedAt)}</dd></div>
             <div><dt>Requests</dt><dd>{requests.data ? items.length + (requests.data.nextCursor ? '+' : '') : '—'}</dd></div>
-            <div><dt>Review rounds</dt><dd>{rounds.data ? roundList.length : '—'}</dd></div>
           </dl>
         </section>
       </aside>
