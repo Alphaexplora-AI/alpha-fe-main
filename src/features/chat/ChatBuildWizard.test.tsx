@@ -76,6 +76,16 @@ describe('the build panel above the message box', () => {
     expect(continueChoice(stopped)?.action).toBeUndefined();
   });
 
+  it('offers no retry when the working copy and its checkpoint are lost, and says why', () => {
+    const reason = 'Build working copy lost: The org/api working copy is no longer connected to C:/projects/api. Stop this build and start a new one.';
+    const lost = build('blocked', reason);
+    expect(continueChoice(lost)).toBeNull();
+    const html = render({ build: lost });
+    expect(html).toContain('Stop this build and start a new one.');
+    expect(html).not.toContain('Retry milestone planning');
+    expect(html).not.toContain('Fix and continue');
+  });
+
   it('shows why a blocked build stopped, and offers to fix and continue', () => {
     const html = render({ build: build('blocked', 'The login API contract is missing.') });
     expect(html).toContain('The build needs you');

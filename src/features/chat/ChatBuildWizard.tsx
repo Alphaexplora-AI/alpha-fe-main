@@ -93,6 +93,8 @@ function currentRepositoryLabel(build: ProjectLiveBuild, taskTitle?: string): st
  * when it cannot be done left the person pressing a button that changed nothing.
  */
 export function continueChoice(build: ProjectLiveBuild): { label: string; hint: string; action?: LiveBuildRecoveryAction } | null {
+  // The working copy and its checkpoint are gone: nothing can continue it, so offer no retry.
+  if (build.status === 'blocked' && build.orchestration.run.stoppedReason?.startsWith('Build working copy lost:')) return null;
   if (build.status === 'blocked' && build.orchestration.run.stoppedReason?.startsWith('Plan document could not be saved before dispatch:')) return { label: 'Retry saving the plan', hint: 'Save the Markdown document before continuing work.' };
   if (build.status === 'blocked' && build.orchestration.run.stoppedReason?.startsWith('Milestone planning stopped before dispatch:')) return { label: 'Retry milestone planning', hint: 'Use the saved checkpoint to plan the next milestone again.' };
   if (build.status === 'paused') return { label: 'Resume', hint: 'Pick up where it stopped.' };
