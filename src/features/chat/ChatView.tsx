@@ -782,8 +782,13 @@ export const ChatView: React.FC<{ unifiedNavigation?: boolean }> = ({ unifiedNav
   const resumePausedBuild = async () => {
     if (!liveBuild || !project?.id) return;
     try {
-      await apiService.resumeOrchestration(project.id, liveBuild.runId);
-      showToast('Build resumed', 'The Orchestrator picked the build up where it paused.', 'success');
+      const resumed = await apiService.resumeOrchestration(project.id, liveBuild.runId);
+      // The request can succeed while the build stops again at once; say what actually happened.
+      if (['blocked', 'recovery_required', 'paused'].includes(resumed.status)) {
+        showToast('Build still stopped', 'It stopped again straight away. The build card shows why.', 'error');
+      } else {
+        showToast('Build resumed', 'The Orchestrator picked the build up where it paused.', 'success');
+      }
     } catch (error: any) {
       showToast('Build not resumed', error?.message ?? 'Open the build to see what it is waiting for.', 'error');
     } finally {
