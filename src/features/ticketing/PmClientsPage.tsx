@@ -7,7 +7,7 @@ import { LoadingRows } from '@/shared/components/ui/skeleton';
 import { pmTicketApi, pmTicketDocumentsApi, type PmClientConversation, type PmClientSummary, type PmTicketQueueItem } from './pmApi';
 import { PmTicketsView, type WorkflowActions } from './PmTicketsView';
 import { pmTicketsIntakeEnabled, usePmWorkflowActions } from './PmTicketsPage';
-import { ClientConversations, ClientDocuments, ClientOverview, loadClientRequests } from './PmClientSections';
+import { ClientConversations, ClientDocuments, ClientOverview, ClientProjects, loadClientProjects, loadClientRequests, type ClientProjectDetail } from './PmClientSections';
 import type { TicketDocumentsReadApi } from './ticketDocuments';
 
 export type ClientSection = 'overview' | 'tickets' | 'conversations' | 'documents' | 'projects' | 'access';
@@ -115,6 +115,7 @@ export function PmClientsWorkspace({ api = pmTicketApi, documentsApi = pmTicketD
   const [requests, setRequests] = useState<PmTicketQueueItem[] | null>(null);
   const [conversations, setConversations] = useState<PmClientConversation[] | null>(null);
   const [conversationsError, setConversationsError] = useState('');
+  const [projectDetails, setProjectDetails] = useState<ClientProjectDetail[] | null>(null);
   // A request picked on Overview, Conversations or Documents, opened in the Tickets tab.
   const [openRequestId, setOpenRequestId] = useState<string | null>(null);
 
@@ -152,6 +153,15 @@ export function PmClientsWorkspace({ api = pmTicketApi, documentsApi = pmTicketD
     return () => { current = false; };
   }, [api, selectedKey, intakeEnabled, refreshVersion, refreshToken]);
 
+  // The open client's projects, with preview links and feedback, once its summary is loaded.
+  useEffect(() => {
+    setProjectDetails(null);
+    if (!selected || !intakeEnabled) return;
+    let current = true;
+    void loadClientProjects(api, selected).then(details => { if (current) setProjectDetails(details); });
+    return () => { current = false; };
+  }, [api, selected, intakeEnabled]);
+
   const openRequest = (requestId: string) => { setOpenRequestId(requestId); onSection('tickets'); };
 
   return <PmClientsView clients={clients} error={error} loading={loading} search={search} onSearch={setSearch}
@@ -169,7 +179,8 @@ export function PmClientsWorkspace({ api = pmTicketApi, documentsApi = pmTicketD
     renderOverview={client => <ClientOverview client={client} requests={requests} conversations={conversations} onOpenRequest={openRequest} />}
     renderConversations={client => <ClientConversations client={client} requests={requests} conversations={conversations}
       error={conversationsError} onOpenRequest={openRequest} />}
-    renderDocuments={() => <ClientDocuments requests={requests} documentsApi={documentsApi} onOpenRequest={openRequest} />} />;
+    renderDocuments={() => <ClientDocuments requests={requests} documentsApi={documentsApi} onOpenRequest={openRequest} />}
+    renderProjects={client => <ClientProjects client={client} projects={projectDetails} knownProjectIds={knownProjectIds} onOpenProject={onOpenProject} />} />;
 }
 
 export interface PmClientsViewProps {
@@ -196,11 +207,13 @@ export interface PmClientsViewProps {
   renderOverview?: (client: PmClientSummary) => ReactNode;
   renderConversations?: (client: PmClientSummary) => ReactNode;
   renderDocuments?: (client: PmClientSummary) => ReactNode;
+  /** Replaces the plain project list, as with preview links and feedback. */
+  renderProjects?: (client: PmClientSummary) => ReactNode;
 }
 
 /** The Clients list and a client's page, from props alone. */
 export function PmClientsView({ clients, error, loading, search, onSearch, selectedKey, onSelect, section, onSection,
-  needsYouOnly = false, onNeedsYouOnly,
+  needsYouOnly = false, onNeedsYouOnly, renderProjects,
   knownProjectIds, onRefresh, onOpenProject, onOpenInquiries, renderTickets, renderOverview, renderConversations, renderDocuments }: PmClientsViewProps) {
   const selected = clients?.find(client => client.key === selectedKey) ?? null;
   const visible = useMemo(() => filterClients(clients ?? [], search, needsYouOnly), [clients, search, needsYouOnly]);
@@ -245,7 +258,7 @@ export function PmClientsView({ clients, error, loading, search, onSearch, selec
         {openSection === 'documents' && renderDocuments?.(selected)}
 
         {openSection === 'projects' && <div className="h-full overflow-y-auto px-6 py-5">
-          {selected.projects.length === 0
+          {renderProjects ? renderProjects(selected) : selected.projects.length === 0
             ? <p className="text-[13px] text-content-muted">This client can’t see any projects yet. A project shows here once one of their requests is linked to it and shared with them.</p>
             : <ul className="divide-y divide-divider border-y border-divider">
               {selected.projects.map(project => <li key={project.projectId} className="flex items-center gap-3 py-3">

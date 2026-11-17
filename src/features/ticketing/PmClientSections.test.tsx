@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 vi.hoisted(() => { (globalThis as { window?: unknown }).window ??= globalThis; });
 
-import { ClientConversations, ClientOverview, loadClientRequests } from './PmClientSections';
+import { ClientConversations, ClientOverview, ClientProjects, loadClientProjects, loadClientRequests } from './PmClientSections';
 import type { PmClientConversation, PmClientSummary, PmTicketQueueItem, PmTicketQueuePage } from './pmApi';
 
 const client: PmClientSummary = {
@@ -59,5 +59,47 @@ describe('Loading a client’s requests', () => {
     const result = await loadClientRequests(list as never, 'client:ana');
     expect(result.items.map(item => item.id)).toEqual(['t1', 't2', 't3']);
     for (const [options] of list.mock.calls) expect(options.clientGroupKey).toBe('client:ana');
+  });
+});
+
+describe('Client projects', () => {
+  const withProjects: PmClientSummary = { ...client, projects: [
+    { projectId: 'p1', name: 'Resort Website', previewPublished: true },
+    { projectId: 'p2', name: 'Booking System', previewPublished: false },
+  ] };
+  const api = {
+    getProjectClientPreview: vi.fn(async (projectId: string) => ({ preview: projectId === 'p1' ? { repository: 'r', branch: 'uat' as const, url: 'https://preview.example.test' } : null })),
+    listProjectPreviewClients: vi.fn(async () => ({ items: [{ clientId: 'ana', displayName: 'Ana Cruz' }, { clientId: 'ben', displayName: 'Ben' }] })),
+    getProjectFeedbackMessages: vi.fn(async (projectId: string, clientId: string) => {
+      if (projectId === 'p2') throw new Error('boom');
+      return { items: [
+        { id: 'f1', clientId, author: 'client' as const, body: 'Older', createdAt: '2026-11-01T10:00:00.000Z' },
+        { id: 'f2', clientId, author: 'pm' as const, body: 'Newer', createdAt: '2026-11-02T10:00:00.000Z' },
+      ], nextCursor: null };
+    }),
+  };
+
+  it('loads each project for this client only, newest feedback first, and isolates a failing project', async () => {
+    const details = await loadClientProjects(api as never, withProjects);
+    expect(api.getProjectFeedbackMessages).toHaveBeenCalledWith('p1', 'ana', { limit: 3 });
+    expect(details[0]).toMatchObject({ previewUrl: 'https://preview.example.test', feedback: [{ id: 'f2' }, { id: 'f1' }] });
+    expect(details[1]).toMatchObject({ projectId: 'p2', previewUrl: null, feedback: null });
+  });
+
+  it('shows the preview link, feedback, and links only to known projects', async () => {
+    const details = await loadClientProjects(api as never, withProjects);
+    const html = renderToStaticMarkup(<ClientProjects client={withProjects} projects={details} knownProjectIds={new Set(['p1'])} onOpenProject={() => undefined} />);
+    expect(html).toContain('href="https://preview.example.test"');
+    expect(html).toContain('Ana Cruz');
+    expect(html).toContain('Newer');
+    expect(html).toContain('Project feedback could not be loaded.');
+    expect(html.match(/Open project/g)).toHaveLength(1);
+  });
+
+  it('never links a preview address that is not a web page', () => {
+    const html = renderToStaticMarkup(<ClientProjects client={withProjects} knownProjectIds={new Set()} onOpenProject={() => undefined}
+      projects={[{ projectId: 'p1', name: 'Resort Website', previewPublished: true, previewUrl: 'javascript:alert(1)', feedback: [] }]} />);
+    expect(html).not.toContain('javascript:');
+    expect(html).toContain('No project feedback from this client yet.');
   });
 });
