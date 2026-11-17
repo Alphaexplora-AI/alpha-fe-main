@@ -4,13 +4,18 @@ import { ArrowLeft, ArrowUpRight, FolderKanban, RefreshCw, Search, ShieldCheck, 
 import { useApp, useTabSessionState } from '@/app/AppContext';
 import { ApiRequestError } from '@/shared/services/apiService';
 import { LoadingRows } from '@/shared/components/ui/skeleton';
-import { pmTicketApi, type PmClientSummary } from './pmApi';
-import { PmTicketsView } from './PmTicketsView';
+import { pmTicketApi, pmTicketDocumentsApi, type PmClientConversation, type PmClientSummary, type PmTicketQueueItem } from './pmApi';
+import { PmTicketsView, type WorkflowActions } from './PmTicketsView';
 import { pmTicketsIntakeEnabled, usePmWorkflowActions } from './PmTicketsPage';
+import { ClientConversations, ClientDocuments, ClientOverview, loadClientRequests } from './PmClientSections';
+import type { TicketDocumentsReadApi } from './ticketDocuments';
 
-export type ClientSection = 'tickets' | 'projects' | 'access';
+export type ClientSection = 'overview' | 'tickets' | 'conversations' | 'documents' | 'projects' | 'access';
 const SECTIONS: Array<{ id: ClientSection; label: string }> = [
+  { id: 'overview', label: 'Overview' },
   { id: 'tickets', label: 'Tickets' },
+  { id: 'conversations', label: 'Conversations' },
+  { id: 'documents', label: 'Documents' },
   { id: 'projects', label: 'Projects' },
   { id: 'access', label: 'Access' },
 ];
@@ -42,21 +47,56 @@ const shortDate = (value: string) => new Date(value).toLocaleDateString(undefine
  */
 export function PmClientsPage() {
   const { activeWorkspace, projects, setActiveTab } = useApp();
+  // Tab session state, so "View client" on a ticket can open a client here.
+  const [selectedKey, setSelectedKey] = useTabSessionState<string | null>('clients.selected', null);
+  const [section, setSection] = useTabSessionState<ClientSection>('clients.section', 'overview');
+  const [, setSelectedProject] = useTabSessionState<string | null>('projects.selectedProject', null);
+  const workflowActions = usePmWorkflowActions();
+  const knownProjectIds = useMemo(() => new Set(projects.map(project => project.id)), [projects]);
+
+  return <PmClientsWorkspace workspaceKey={activeWorkspace?.id ?? 'none'} intakeEnabled={pmTicketsIntakeEnabled}
+    workflowActions={workflowActions} selectedKey={selectedKey} onSelectKey={setSelectedKey} section={section} onSection={setSection}
+    knownProjectIds={knownProjectIds} onOpenProject={projectId => { setSelectedProject(projectId); setActiveTab('projects'); }}
+    onOpenInquiries={() => setActiveTab('inquiries')} />;
+}
+
+/**
+ * The Clients list and a client's page with its data: the summary list, and for the
+ * open client its requests and their latest messages. Used by the PM app and the
+ * development preview, which supplies sample APIs and its own selection state.
+ */
+export function PmClientsWorkspace({ api = pmTicketApi, documentsApi = pmTicketDocumentsApi, workspaceKey, intakeEnabled = true,
+  workflowActions = 'all', selectedKey, onSelectKey, section, onSection, knownProjectIds, onOpenProject, onOpenInquiries, refreshToken }: {
+  api?: typeof pmTicketApi;
+  documentsApi?: TicketDocumentsReadApi;
+  workspaceKey: string;
+  intakeEnabled?: boolean;
+  workflowActions?: WorkflowActions;
+  selectedKey: string | null;
+  onSelectKey: (key: string | null) => void;
+  section: ClientSection;
+  onSection: (section: ClientSection) => void;
+  knownProjectIds: ReadonlySet<string>;
+  onOpenProject: (projectId: string) => void;
+  onOpenInquiries: () => void;
+  /** Parent-owned refresh, as in the preview toolbar. */
+  refreshToken?: number;
+}) {
   const [clients, setClients] = useState<PmClientSummary[] | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [search, setSearch] = useState('');
-  // Tab session state, so "View client" on a ticket can open a client here.
-  const [selectedKey, setSelectedKey] = useTabSessionState<string | null>('clients.selected', null);
-  const [section, setSection] = useTabSessionState<ClientSection>('clients.section', 'tickets');
-  const [, setSelectedProject] = useTabSessionState<string | null>('projects.selectedProject', null);
-  const workflowActions = usePmWorkflowActions();
+  const [requests, setRequests] = useState<PmTicketQueueItem[] | null>(null);
+  const [conversations, setConversations] = useState<PmClientConversation[] | null>(null);
+  const [conversationsError, setConversationsError] = useState('');
+  // A request picked on Overview, Conversations or Documents, opened in the Tickets tab.
+  const [openRequestId, setOpenRequestId] = useState<string | null>(null);
 
   useEffect(() => {
     let current = true;
     setLoading(true); setError('');
-    void pmTicketApi.listClients().then(items => {
+    void api.listClients().then(items => {
       if (current) setClients(items);
     }).catch(failure => {
       if (current) { setClients(null); setError(clientsLoadError(failure)); }
@@ -64,29 +104,46 @@ export function PmClientsPage() {
       if (current) setLoading(false);
     });
     return () => { current = false; };
-  }, [activeWorkspace?.id, refreshVersion]);
+  }, [api, workspaceKey, refreshVersion, refreshToken]);
 
   const refresh = useCallback(() => setRefreshVersion(value => value + 1), []);
   const selected = clients?.find(client => client.key === selectedKey) ?? null;
-  const knownProjectIds = useMemo(() => new Set(projects.map(project => project.id)), [projects]);
 
   // A saved selection from another workspace, or a client that no longer
   // exists, falls back to the list rather than an empty page.
   useEffect(() => {
-    if (clients && selectedKey && !selected) setSelectedKey(null);
-  }, [clients, selectedKey, selected, setSelectedKey]);
+    if (clients && selectedKey && !selected) onSelectKey(null);
+  }, [clients, selectedKey, selected, onSelectKey]);
+
+  // The open client's requests and latest messages, for Overview, Conversations and Documents.
+  useEffect(() => {
+    setRequests(null); setConversations(null); setConversationsError(''); setOpenRequestId(null);
+    if (!selectedKey || !intakeEnabled) return;
+    let current = true;
+    void loadClientRequests(options => api.list(options), selectedKey).then(result => { if (current) setRequests(result.items); })
+      .catch(() => { if (current) setRequests([]); });
+    void api.listClientConversations(selectedKey).then(page => { if (current) setConversations(page.items); })
+      .catch(() => { if (current) setConversationsError('Conversations could not be loaded. Refresh to try again.'); });
+    return () => { current = false; };
+  }, [api, selectedKey, intakeEnabled, refreshVersion, refreshToken]);
+
+  const openRequest = (requestId: string) => { setOpenRequestId(requestId); onSection('tickets'); };
 
   return <PmClientsView clients={clients} error={error} loading={loading} search={search} onSearch={setSearch}
-    selectedKey={selectedKey} onSelect={key => { setSelectedKey(key); if (key) setSection('tickets'); }}
-    section={section} onSection={setSection} knownProjectIds={knownProjectIds} onRefresh={refresh}
-    onOpenProject={projectId => { setSelectedProject(projectId); setActiveTab('projects'); }}
-    onOpenInquiries={() => setActiveTab('inquiries')}
+    selectedKey={selectedKey} onSelect={key => { onSelectKey(key); if (key) onSection('overview'); }}
+    section={section} onSection={next => { if (next === 'tickets') setOpenRequestId(null); onSection(next); }}
+    knownProjectIds={knownProjectIds} onRefresh={refresh} onOpenProject={onOpenProject} onOpenInquiries={onOpenInquiries}
     renderTickets={key => <div className="pm-ticket-page pm-ticket-page--nested">
       <div className="pm-ticket-page__content">
-        <PmTicketsView key={`${activeWorkspace?.id ?? 'none'}:${key}`} fixedClientGroupKey={key}
-          intakeEnabled={pmTicketsIntakeEnabled} workflowActions={workflowActions} communicationEnabled />
+        <PmTicketsView key={`${workspaceKey}:${key}:${openRequestId ?? 'list'}`} api={api} documentsApi={documentsApi}
+          fixedClientGroupKey={key} initialSelectedId={openRequestId}
+          intakeEnabled={intakeEnabled} workflowActions={workflowActions} communicationEnabled />
       </div>
-    </div>} />;
+    </div>}
+    renderOverview={client => <ClientOverview client={client} requests={requests} conversations={conversations} onOpenRequest={openRequest} />}
+    renderConversations={client => <ClientConversations client={client} requests={requests} conversations={conversations}
+      error={conversationsError} onOpenRequest={openRequest} />}
+    renderDocuments={() => <ClientDocuments requests={requests} documentsApi={documentsApi} onOpenRequest={openRequest} />} />;
 }
 
 export interface PmClientsViewProps {
@@ -106,11 +163,15 @@ export interface PmClientsViewProps {
   onOpenInquiries: () => void;
   /** The Tickets tab's content for one client. */
   renderTickets: (clientKey: string) => ReactNode;
+  /** Optional tabs; each appears only when given. */
+  renderOverview?: (client: PmClientSummary) => ReactNode;
+  renderConversations?: (client: PmClientSummary) => ReactNode;
+  renderDocuments?: (client: PmClientSummary) => ReactNode;
 }
 
 /** The Clients list and a client's page, from props alone. */
 export function PmClientsView({ clients, error, loading, search, onSearch, selectedKey, onSelect, section, onSection,
-  knownProjectIds, onRefresh, onOpenProject, onOpenInquiries, renderTickets }: PmClientsViewProps) {
+  knownProjectIds, onRefresh, onOpenProject, onOpenInquiries, renderTickets, renderOverview, renderConversations, renderDocuments }: PmClientsViewProps) {
   const selected = clients?.find(client => client.key === selectedKey) ?? null;
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -119,7 +180,11 @@ export function PmClientsView({ clients, error, loading, search, onSearch, selec
   }, [clients, search]);
 
   if (selected) {
-    const openSection: ClientSection = SECTIONS.some(item => item.id === section) ? section : 'tickets';
+    const optional: Partial<Record<ClientSection, ((client: PmClientSummary) => ReactNode) | undefined>> = {
+      overview: renderOverview, conversations: renderConversations, documents: renderDocuments,
+    };
+    const sections = SECTIONS.filter(item => !(item.id in optional) || optional[item.id]);
+    const openSection: ClientSection = sections.some(item => item.id === section) ? section : 'tickets';
     return <div className="flex h-full min-h-0 flex-col bg-canvas">
       <header className="shrink-0 border-b border-divider px-6 pb-0 pt-4">
         <button type="button" onClick={() => onSelect(null)} className="mb-3 inline-flex items-center gap-1.5 text-xs font-medium text-content-muted hover:text-content">
@@ -135,7 +200,7 @@ export function PmClientsView({ clients, error, loading, search, onSearch, selec
           <AccessBadge access={selected.access} />
         </div>
         <div role="tablist" aria-label="Client sections" className="mt-4 flex gap-5">
-          {SECTIONS.map(item => <button key={item.id} type="button" role="tab" aria-selected={openSection === item.id}
+          {sections.map(item => <button key={item.id} type="button" role="tab" aria-selected={openSection === item.id}
             onClick={() => onSection(item.id)}
             className={`relative inline-flex h-9 items-center gap-1.5 text-[13px] font-medium ${openSection === item.id
               ? 'text-content after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full after:bg-link'
@@ -147,7 +212,10 @@ export function PmClientsView({ clients, error, loading, search, onSearch, selec
       </header>
 
       <div role="tabpanel" aria-label={SECTIONS.find(item => item.id === openSection)?.label} className="min-h-0 flex-1">
+        {openSection === 'overview' && renderOverview?.(selected)}
         {openSection === 'tickets' && renderTickets(selected.key)}
+        {openSection === 'conversations' && renderConversations?.(selected)}
+        {openSection === 'documents' && renderDocuments?.(selected)}
 
         {openSection === 'projects' && <div className="h-full overflow-y-auto px-6 py-5">
           {selected.projects.length === 0

@@ -10,6 +10,8 @@ import {
   type PmTicketQueuePage,
   type PmCentralIntakeItem,
   type PmCentralIntakePage,
+  type PmClientConversationPage,
+  type PmClientSummary,
   type TicketActionOwner,
   type TicketNextAction,
   type TicketStatus,
@@ -117,6 +119,10 @@ export const DEMO_TICKETS: DemoTicket[] = [
   },
 ];
 
+/** The same key rule as Alpha: a client with an account is `client:<account>`. */
+const clientGroupKeyOf = (ticket: DemoTicket) => (ticket.clientAccessActive ? 'client:preview-northstar' : `ticket:${ticket.id}`);
+const isTerminal = (ticket: DemoTicket) => ['closed', 'declined', 'cancelled'].includes(ticket.status);
+
 function toQueueItem(ticket: DemoTicket): PmTicketQueueItem {
   return {
     id: ticket.id, reference: ticket.reference, title: ticket.title, status: ticket.status,
@@ -126,7 +132,7 @@ function toQueueItem(ticket: DemoTicket): PmTicketQueueItem {
       updatedAt: ticket.updatedAt, actionOwner: ticket.actionOwner, nextAction: ticket.nextAction,
       projectId: ticket.projectId, projectName: ticket.projectName,
       clientGroup: {
-        key: ticket.clientAccessActive ? 'preview-northstar' : `ticket:${ticket.id}`,
+        key: clientGroupKeyOf(ticket),
         displayName: ticket.contact?.fullName ?? ticket.companyLabel,
       },
       clientAccessActive: ticket.clientAccessActive, clientInvitation: null,
@@ -185,7 +191,7 @@ function filterTickets(tickets: readonly DemoTicket[], options: PmTicketQueueOpt
       || (options.filter === 'in_progress' && ticket.status === 'in_progress')
       || (options.filter === 'waiting_client' && !terminal && ticket.actionOwner === 'client')
       || (options.filter === 'closed_month' && ticket.status === 'closed' && ticket.closedAt?.slice(0, 7) === new Date().toISOString().slice(0, 7));
-    const clientGroupKey = ticket.clientAccessActive ? 'preview-northstar' : `ticket:${ticket.id}`;
+    const clientGroupKey = clientGroupKeyOf(ticket);
     const clientName = ticket.contact?.fullName ?? ticket.companyLabel;
     const matchesClient = !options.clientGroupKey || options.clientGroupKey === clientGroupKey;
     const matchesSearch = !search || `${ticket.reference} ${ticket.title} ${ticket.description} ${clientName}`.toLowerCase().includes(search);
@@ -205,10 +211,39 @@ const localMethods: Partial<typeof pmTicketApi> = {
   async listClientGroups() {
     const groups = new Map<string, string>();
     for (const ticket of DEMO_TICKETS) {
-      const key = ticket.clientAccessActive ? 'preview-northstar' : `ticket:${ticket.id}`;
+      const key = clientGroupKeyOf(ticket);
       if (!groups.has(key)) groups.set(key, ticket.contact?.fullName ?? ticket.companyLabel);
     }
     return [...groups].map(([key, displayName]) => ({ key, displayName }));
+  },
+  async listClients(): Promise<PmClientSummary[]> {
+    const tickets = DEMO_TICKETS.filter(ticket => ticket.clientAccessActive);
+    const open = tickets.filter(ticket => !isTerminal(ticket));
+    const projects = new Map<string, string>();
+    for (const ticket of tickets) if (ticket.projectId && ticket.projectName) projects.set(ticket.projectId, ticket.projectName);
+    return [{
+      key: 'client:preview-northstar', displayName: 'Northstar Demo Co.', company: 'Northstar Demo Co.', access: 'active',
+      tickets: {
+        needsPm: open.filter(ticket => ticket.actionOwner === 'pm').length,
+        waitingClient: open.filter(ticket => ticket.actionOwner === 'client').length,
+        open: open.length, closed: tickets.length - open.length,
+        unlinkedOpen: open.filter(ticket => !ticket.projectId).length, accessRevoked: 0,
+      },
+      projects: [...projects].map(([projectId, name]) => ({ projectId, name, previewPublished: false })),
+      lastActivityAt: new Date(Math.max(...tickets.map(ticket => Date.parse(ticket.updatedAt)))).toISOString(),
+    }];
+  },
+  async listClientConversations(clientGroupKey: string): Promise<PmClientConversationPage> {
+    const items = DEMO_TICKETS.filter(ticket => clientGroupKeyOf(ticket) === clientGroupKey)
+      .sort((a, b) => (a.id < b.id ? -1 : 1))
+      .map(ticket => {
+        const latest = [...ticket.messages].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
+        return { ticketId: ticket.id, latestMessage: latest ? {
+          id: latest.id, author: latest.author, preview: latest.body.slice(0, 280), truncated: latest.body.length > 280,
+          createdAt: new Date(latest.createdAt).toISOString(),
+        } : null };
+      });
+    return { items, complete: true };
   },
   async list(options: PmTicketQueueOptions = {}): Promise<PmTicketQueuePage> {
     const tickets = filterTickets(DEMO_TICKETS, options);

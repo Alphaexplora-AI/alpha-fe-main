@@ -211,3 +211,29 @@ describe('PM client list transport', () => {
     await expect(pmTicketApi.listClients()).rejects.toThrow('Client list response is invalid.');
   });
 });
+
+describe('PM client conversation transport', () => {
+  const row = { ticketId: 't1', latestMessage: { id: 'm1', author: 'client', preview: 'Hello', truncated: false, createdAt: '2026-11-15T10:00:00.000Z' } };
+  it('reads one client’s conversation summary and keeps only the documented fields', async () => {
+    const request = vi.spyOn(apiService, 'ticketRequest').mockResolvedValue({
+      items: [{ ...row, body: 'full text', latestMessage: { ...row.latestMessage, audience: 'client' } }, { ticketId: 't2', latestMessage: null }], complete: true,
+    } as never);
+    expect(await pmTicketApi.listClientConversations('client:ana')).toEqual({ items: [row, { ticketId: 't2', latestMessage: null }], complete: true });
+    expect(request).toHaveBeenCalledWith('/tickets/clients/client%3Aana/conversations');
+  });
+  it.each([
+    ['an internal author', { ...row, latestMessage: { ...row.latestMessage, author: 'developer' } }],
+    ['a long preview', { ...row, latestMessage: { ...row.latestMessage, preview: 'x'.repeat(281) } }],
+    ['a bad time', { ...row, latestMessage: { ...row.latestMessage, createdAt: 'never' } }],
+    ['a missing ticket', { ...row, ticketId: '' }],
+  ])('rejects %s', async (_label, item) => {
+    vi.spyOn(apiService, 'ticketRequest').mockResolvedValue({ items: [item], complete: true } as never);
+    await expect(pmTicketApi.listClientConversations('client:ana')).rejects.toThrow('Client conversation response is invalid.');
+  });
+  it('rejects a repeated request or a missing completeness flag', async () => {
+    vi.spyOn(apiService, 'ticketRequest').mockResolvedValueOnce({ items: [row, row], complete: true } as never)
+      .mockResolvedValueOnce({ items: [row] } as never);
+    await expect(pmTicketApi.listClientConversations('client:ana')).rejects.toThrow('invalid');
+    await expect(pmTicketApi.listClientConversations('client:ana')).rejects.toThrow('invalid');
+  });
+});

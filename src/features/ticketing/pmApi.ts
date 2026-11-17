@@ -60,6 +60,39 @@ const boundedText = (value: unknown, allowEmpty = false): value is string => typ
   && value.length <= 200 && value.trim() === value && (allowEmpty || value.length > 0);
 const countValue = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
 
+/** One request on a client's page, with its newest client-visible message (never an internal note). */
+export interface PmClientConversation {
+  ticketId: string;
+  latestMessage: { id: string; author: 'pm' | 'client'; preview: string; truncated: boolean; createdAt: string } | null;
+}
+export interface PmClientConversationPage { items: PmClientConversation[]; complete: boolean }
+
+/** Strictly read a client conversation summary; anything unexpected is a failed response, not data. */
+export function parseClientConversationPage(value: unknown): PmClientConversationPage {
+  const invalid = (): never => { throw new Error('Client conversation response is invalid.'); };
+  const record = (input: unknown) => (input && typeof input === 'object' && !Array.isArray(input) ? input as Record<string, unknown> : invalid());
+  const text = (input: unknown, max: number) => (typeof input === 'string' && input.length > 0 && input.length <= max ? input : invalid());
+  const page = record(value);
+  if (!Array.isArray(page.items) || page.items.length > 200 || typeof page.complete !== 'boolean') invalid();
+  const ids = new Set<string>();
+  const items = (page.items as unknown[]).map(entry => {
+    const row = record(entry);
+    const ticketId = text(row.ticketId, 200);
+    if (ids.has(ticketId)) invalid();
+    ids.add(ticketId);
+    if (row.latestMessage === null) return { ticketId, latestMessage: null };
+    const message = record(row.latestMessage);
+    if ((message.author !== 'pm' && message.author !== 'client') || typeof message.preview !== 'string'
+      || message.preview.length > 280 || typeof message.truncated !== 'boolean'
+      || typeof message.createdAt !== 'string' || !Number.isFinite(Date.parse(message.createdAt))) invalid();
+    return { ticketId, latestMessage: {
+      id: text(message.id, 200), author: message.author as 'pm' | 'client', preview: message.preview as string,
+      truncated: message.truncated as boolean, createdAt: message.createdAt as string,
+    } };
+  });
+  return { items, complete: page.complete as boolean };
+}
+
 /** Parse one client summary, or throw: the page shows nothing it cannot trust. */
 export function parsePmClientSummary(value: unknown): PmClientSummary {
   const invalid = () => new Error('Client list response is invalid.');
@@ -388,6 +421,11 @@ export const pmTicketApi = {
       keys.add(group.key);
       return { key: group.key, displayName: group.displayName };
     });
+  },
+  /** A client's page: the newest client-visible message on each of their requests. Read-only. */
+  async listClientConversations(clientGroupKey: string): Promise<PmClientConversationPage> {
+    return parseClientConversationPage(await apiService.ticketRequest<unknown>(
+      `/tickets/clients/${encodeId(clientGroupKey)}/conversations`));
   },
   async listClients(): Promise<PmClientSummary[]> {
     const value = await apiService.ticketRequest<unknown>('/tickets/clients');

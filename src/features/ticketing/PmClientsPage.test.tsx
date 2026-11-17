@@ -57,7 +57,7 @@ describe('Clients list', () => {
 });
 
 describe('A client’s page', () => {
-  it('opens on Tickets, locked to this client', () => {
+  it('shows Tickets locked to this client', () => {
     const html = render({ selectedKey: 'client:ana' });
     for (const shown of ['All clients', 'Ana Cruz', 'Tickets', 'Projects', 'Access', 'Tickets for client:ana', 'Portal access on']) expect(html).toContain(shown);
   });
@@ -94,5 +94,28 @@ describe('Load errors', () => {
   });
   it('has a generic message for anything else', () => {
     expect(clientsLoadError(new Error('boom'))).toContain('could not be loaded');
+  });
+});
+
+describe('A client’s added tabs', () => {
+  const tabs = {
+    renderOverview: () => <p>Overview body</p>,
+    renderConversations: () => <p>Conversations body</p>,
+    renderDocuments: () => <p>Documents body</p>,
+  };
+  it('lists Overview first and Conversations and Documents after Tickets', () => {
+    const html = render({ selectedKey: 'client:ana', section: 'overview', ...tabs });
+    const order = ['Overview', '>Tickets<', 'Conversations', 'Documents', '>Projects<', '>Access<'].map(label => html.indexOf(label));
+    expect(order.every(index => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(html).toContain('Overview body');
+  });
+  it.each([['conversations', 'Conversations body'], ['documents', 'Documents body']] as const)('renders the %s tab', (section, body) => {
+    expect(render({ selectedKey: 'client:ana', section, ...tabs })).toContain(body);
+  });
+  it('hides tabs that are not provided and falls back to Tickets', () => {
+    const html = render({ selectedKey: 'client:ana', section: 'overview' });
+    expect(html).not.toContain('Conversations');
+    expect(html).toContain('Tickets for client:ana');
   });
 });
