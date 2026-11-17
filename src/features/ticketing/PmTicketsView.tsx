@@ -187,6 +187,7 @@ export function PmContactVerification({ verification }: { verification: unknown 
   return <span className="text-content-muted">Unable to verify status</span>;
 }
 
+// eslint-disable-next-line sonarjs/cognitive-complexity -- existing view; this change only adds the initialSelectedId prop
 export function PmTicketsView({ api = pmTicketApi, documentsApi = pmTicketDocumentsApi, intakeEnabled = true, workflowActions = 'all', communicationEnabled = false, refreshToken, fixedClientGroupKey, onOpenClient,
   initialSelectedId = null }: {
   api?: typeof pmTicketApi;

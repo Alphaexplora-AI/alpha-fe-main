@@ -73,6 +73,34 @@ function Panel({ title, caption, children }: { title: string; caption?: string; 
 const rowClass = 'grid w-full grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-3 border-t border-divider px-4 py-2.5 text-left';
 const Empty = ({ children }: { children: ReactNode }) => <p className="px-4 py-4 text-[13px] text-content-muted">{children}</p>;
 
+interface ActivityEntry { at: string; requestId: string; message: boolean; text: string }
+
+/** Open requests first (or all when none are open), those needing the PM on top, newest next. */
+function listedRequests(requests: PmTicketQueueItem[]): PmTicketQueueItem[] {
+  const open = requests.filter(isOpenRequest);
+  return (open.length ? open : requests).slice().sort((a, b) => Number(needsAttention(b)) - Number(needsAttention(a))
+    || Date.parse(b.internal.updatedAt) - Date.parse(a.internal.updatedAt)).slice(0, 6);
+}
+
+/** One line per request: its newest event, a message if that came last, otherwise its status. */
+function recentActivity(client: PmClientSummary, requests: PmTicketQueueItem[], conversations: PmClientConversation[] | null): ActivityEntry[] {
+  const byId = new Map(requests.map(item => [item.id, item]));
+  const latest = new Map<string, ActivityEntry>();
+  const consider = (entry: ActivityEntry) => {
+    const current = latest.get(entry.requestId);
+    if (Number.isFinite(Date.parse(entry.at)) && (!current || Date.parse(entry.at) > Date.parse(current.at))) latest.set(entry.requestId, entry);
+  };
+  for (const item of requests) consider({ at: item.internal.updatedAt, requestId: item.id, message: false, text: `${item.title} is now ${statusLabel(item.status).toLowerCase()}` });
+  for (const item of conversations ?? []) {
+    const request = byId.get(item.ticketId);
+    if (!item.latestMessage || !request) continue;
+    const fromClient = item.latestMessage.author === 'client';
+    consider({ at: item.latestMessage.createdAt, requestId: item.ticketId, message: true,
+      text: `${fromClient ? client.displayName : 'You'} ${fromClient ? 'wrote on' : 'replied on'} ${request.title}` });
+  }
+  return [...latest.values()].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, 6);
+}
+
 export function ClientOverview({ client, requests, conversations, onOpenRequest }: {
   client: PmClientSummary;
   requests: PmTicketQueueItem[] | null;
@@ -81,23 +109,8 @@ export function ClientOverview({ client, requests, conversations, onOpenRequest 
 }) {
   if (!requests) return <div className="px-6 py-5"><LoadingRows label="Loading this client" rows={3} /></div>;
   const open = requests.filter(isOpenRequest);
-  const listed = (open.length ? open : requests).slice().sort((a, b) => Number(needsAttention(b)) - Number(needsAttention(a))
-    || Date.parse(b.internal.updatedAt) - Date.parse(a.internal.updatedAt)).slice(0, 6);
-  const byId = new Map(requests.map(item => [item.id, item]));
-  // One line per request: its newest event, a message if that came last, otherwise its status.
-  const latest = new Map<string, { at: string; requestId: string; message: boolean; text: string }>();
-  const consider = (entry: { at: string; requestId: string; message: boolean; text: string }) => {
-    const current = latest.get(entry.requestId);
-    if (Number.isFinite(Date.parse(entry.at)) && (!current || Date.parse(entry.at) > Date.parse(current.at))) latest.set(entry.requestId, entry);
-  };
-  for (const item of requests) consider({ at: item.internal.updatedAt, requestId: item.id, message: false, text: `${item.title} is now ${statusLabel(item.status).toLowerCase()}` });
-  for (const item of conversations ?? []) {
-    const request = byId.get(item.ticketId);
-    if (!item.latestMessage || !request) continue;
-    consider({ at: item.latestMessage.createdAt, requestId: item.ticketId, message: true,
-      text: `${item.latestMessage.author === 'client' ? client.displayName : 'You'} ${item.latestMessage.author === 'client' ? 'wrote on' : 'replied on'} ${request.title}` });
-  }
-  const activity = [...latest.values()].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, 6);
+  const listed = listedRequests(requests);
+  const activity = recentActivity(client, requests, conversations);
   const stats = [
     { label: 'Need you', value: client.tickets.needsPm, attention: client.tickets.needsPm > 0 },
     { label: 'Waiting on client', value: client.tickets.waitingClient },
