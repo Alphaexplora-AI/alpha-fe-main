@@ -87,16 +87,27 @@ function currentRepositoryLabel(build: ProjectLiveBuild, taskTitle?: string): st
   return task?.repository ? shortRepo(task.repository) : buildRepositoriesLabel(build);
 }
 
+type ContinueChoice = { label: string; hint: string; action?: LiveBuildRecoveryAction };
+
+/** Blocked builds whose stop reason (by its prefix) decides the choice before any recovery action. */
+const BLOCKED_STOP_CHOICES: ReadonlyArray<readonly [string, ContinueChoice | null]> = [
+  // The working copy and its checkpoint are gone: nothing can continue it, so offer no retry.
+  ['Build working copy lost:', null],
+  ['Plan document could not be saved before dispatch:', { label: 'Retry saving the plan', hint: 'Save the Markdown document before continuing work.' }],
+  ['Milestone planning stopped before dispatch:', { label: 'Retry milestone planning', hint: 'Use the saved checkpoint to plan the next milestone again.' }]
+];
+
 /**
  * What "continue" will actually do for a stopped build, worded for that action. The
  * server lists the recovery actions it allows; offering a generic "Fix and continue"
  * when it cannot be done left the person pressing a button that changed nothing.
  */
-export function continueChoice(build: ProjectLiveBuild): { label: string; hint: string; action?: LiveBuildRecoveryAction } | null {
-  // The working copy and its checkpoint are gone: nothing can continue it, so offer no retry.
-  if (build.status === 'blocked' && build.orchestration.run.stoppedReason?.startsWith('Build working copy lost:')) return null;
-  if (build.status === 'blocked' && build.orchestration.run.stoppedReason?.startsWith('Plan document could not be saved before dispatch:')) return { label: 'Retry saving the plan', hint: 'Save the Markdown document before continuing work.' };
-  if (build.status === 'blocked' && build.orchestration.run.stoppedReason?.startsWith('Milestone planning stopped before dispatch:')) return { label: 'Retry milestone planning', hint: 'Use the saved checkpoint to plan the next milestone again.' };
+export function continueChoice(build: ProjectLiveBuild): ContinueChoice | null {
+  if (build.status === 'blocked') {
+    const stopped = build.orchestration.run.stoppedReason ?? '';
+    const known = BLOCKED_STOP_CHOICES.find(([prefix]) => stopped.startsWith(prefix));
+    if (known) return known[1];
+  }
   if (build.status === 'paused') return { label: 'Resume', hint: 'Pick up where it stopped.' };
   const recovery = build.orchestration.recovery;
   const available = new Set(recovery?.availableActions ?? []);
