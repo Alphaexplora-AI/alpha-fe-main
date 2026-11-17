@@ -191,3 +191,16 @@ describe('Proposals tab', () => {
     expect(proposalsLoadError(new Error('boom'))).toContain('could not be loaded');
   });
 });
+
+describe('Polish', () => {
+  it('does not repeat a company that is the client name', () => {
+    const same: PmClientSummary = { ...ben, displayName: 'Resort Co', company: 'resort co', projects: [{ projectId: 'p', name: 'Site', previewPublished: false }] };
+    const html = render({ clients: [same] });
+    expect(html).toContain('>Site<');
+    expect(html).not.toContain('resort co');
+  });
+  it('shows Refresh only when the page owns refreshing', () => {
+    expect(render()).toContain('Refresh clients');
+    expect(render({ onRefresh: undefined })).not.toContain('Refresh clients');
+  });
+});

@@ -181,7 +181,7 @@ export function PmClientsWorkspace({ api = pmTicketApi, documentsApi = pmTicketD
     needsYouOnly={needsYouOnly} onNeedsYouOnly={setNeedsYouOnly}
     selectedKey={selectedKey} onSelect={key => { onSelectKey(key); if (key) onSection('overview'); }}
     section={section} onSection={next => { if (next === 'tickets') setOpenRequestId(null); onSection(next); }}
-    knownProjectIds={knownProjectIds} onRefresh={refresh} onOpenProject={onOpenProject} onOpenInquiries={onOpenInquiries}
+    knownProjectIds={knownProjectIds} onRefresh={refreshToken === undefined ? refresh : undefined} onOpenProject={onOpenProject} onOpenInquiries={onOpenInquiries}
     renderTickets={key => <div className="pm-ticket-page pm-ticket-page--nested">
       <div className="pm-ticket-page__content">
         <PmTicketsView key={`${workspaceKey}:${key}:${openRequestId ?? 'list'}`} api={api} documentsApi={documentsApi}
@@ -212,7 +212,8 @@ export interface PmClientsViewProps {
   onSection: (section: ClientSection) => void;
   /** Projects in this PM's project list; others are named but not linked. */
   knownProjectIds: ReadonlySet<string>;
-  onRefresh: () => void;
+  /** Omitted when the parent owns refreshing, so the page shows no second Refresh. */
+  onRefresh?: () => void;
   onOpenProject: (projectId: string) => void;
   onOpenInquiries: () => void;
   /** The Tickets tab's content for one client. */
@@ -249,7 +250,7 @@ export function PmClientsView({ clients, error, loading, search, onSearch, selec
           <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold text-content">{selected.displayName}</h1>
             <p className="mt-0.5 text-xs text-content-muted">
-              {[selected.company, plural(selected.tickets.open, 'open request'), plural(selected.projects.length, 'project')].filter(Boolean).join(' · ')}
+              {[selected.company && selected.company.trim().toLowerCase() !== selected.displayName.trim().toLowerCase() ? selected.company : null, plural(selected.tickets.open, 'open request'), plural(selected.projects.length, 'project')].filter(Boolean).join(' · ')}
             </p>
           </div>
           <AccessBadge access={selected.access} />
@@ -330,10 +331,10 @@ export function PmClientsView({ clients, error, loading, search, onSearch, selec
           <span className="sr-only">Search clients</span>
           <input value={search} onChange={event => onSearch(event.target.value)} placeholder="Search clients or projects…" className="min-w-0 flex-1 bg-transparent text-xs text-content placeholder-content-muted focus:outline-none" />
         </label>
-        <button type="button" onClick={onRefresh} disabled={loading} title="Refresh clients"
+        {onRefresh && <button type="button" onClick={onRefresh} disabled={loading} title="Refresh clients"
           className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-content-secondary hover:bg-surface-high hover:text-content disabled:opacity-50">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
-        </button>
+        </button>}
       </div>
     </header>
 
@@ -350,7 +351,7 @@ export function PmClientsView({ clients, error, loading, search, onSearch, selec
         : <table className="w-full text-left text-[13px]">
           <thead className="text-[10.5px] font-semibold uppercase tracking-wide text-content-muted">
             <tr className="border-b border-divider">
-              <th scope="col" className="py-2 pr-3 font-semibold">Client</th>
+              <th scope="col" className="w-1/2 py-2 pr-3 font-semibold sm:w-2/5">Client</th>
               <th scope="col" className="py-2 pr-3 font-semibold">Needs you</th>
               <th scope="col" className="hidden py-2 pr-3 font-semibold sm:table-cell">Open</th>
               <th scope="col" className="hidden py-2 pr-3 font-semibold md:table-cell">Projects</th>
@@ -398,7 +399,8 @@ function NeedsYouCell({ tickets }: { tickets: PmClientSummary['tickets'] }) {
 /** Company and the projects the client can see, one muted line. */
 function ClientSubline({ client }: { client: PmClientSummary }) {
   const projects = client.projects.map(project => project.name).join(', ');
-  const line = [client.company, projects].filter(Boolean).join(' · ');
+  const company = client.company && client.company.trim().toLowerCase() !== client.displayName.trim().toLowerCase() ? client.company : null;
+  const line = [company, projects].filter(Boolean).join(' · ');
   if (!line) return null;
   return <span className="block truncate text-[11.5px] text-content-muted" title={line}>{line}</span>;
 }

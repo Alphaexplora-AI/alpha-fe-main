@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 vi.hoisted(() => { (globalThis as { window?: unknown }).window ??= globalThis; });
 
-import { ClientConversations, ClientOverview, ClientProjects, ClientProposals, loadClientProjects, loadClientRequests } from './PmClientSections';
+import { ClientConversations, ClientOverview, ClientProjects, ClientProposals, previewState, loadClientProjects, loadClientRequests } from './PmClientSections';
 import type { PmClientConversation, PmClientSummary, PmTicketQueueItem, PmTicketQueuePage } from './pmApi';
 
 const client: PmClientSummary = {
@@ -114,5 +114,13 @@ describe('Client proposals', () => {
   it('shows an empty state and errors', () => {
     expect(renderToStaticMarkup(<ClientProposals proposals={[]} error="" onOpenInquiries={() => undefined} />)).toContain('hasn’t sent any project proposals');
     expect(renderToStaticMarkup(<ClientProposals proposals={null} error="Nope" onOpenInquiries={() => undefined} />)).toContain('role="alert"');
+  });
+});
+
+describe('Preview state', () => {
+  it('reads consistently with the preview link', () => {
+    expect(previewState(true, true)).toBe('Shared with the client for review');
+    expect(previewState(false, true)).toBe('Preview link ready · not shared with the client yet');
+    expect(previewState(false, false)).toBe('No preview yet');
   });
 });
