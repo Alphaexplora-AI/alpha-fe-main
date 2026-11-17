@@ -1297,6 +1297,8 @@ export interface ProjectBuildOrchestration {
     taskId: string;
     attemptNumber: number;
     reportFormatRetry?: boolean;
+    /** The repository memory this attempt was given: file and commit per repository. */
+    repositoryMemory?: Array<{ repository: string; file: string; version?: string }>;
     dependencyAudits?: DependencyAuditSummary[];
     prototypeRunId?: string;
     agentId?: string;

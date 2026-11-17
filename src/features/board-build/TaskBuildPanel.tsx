@@ -73,6 +73,27 @@ function stepLabelClass(done: boolean, current: boolean): string {
   return done ? 'text-content-secondary' : 'text-content-muted';
 }
 
+/**
+ * Which repository memory (AGENTS.md) the latest attempt was given, so a person
+ * can see what the agents were told first. Nothing when none was used.
+ */
+export const MemoryUsed: React.FC<{ orchestration: ProjectBuildOrchestration }> = ({ orchestration }) => {
+  const latest = [...orchestration.attempts].reverse().find(attempt => attempt.repositoryMemory?.length);
+  if (!latest?.repositoryMemory) return null;
+  return (
+    <p className="text-[12px] text-content-muted">
+      Project memory read first:{' '}
+      {latest.repositoryMemory.map((item, index) => (
+        <span key={item.repository}>
+          {index > 0 && ', '}
+          <span className="font-mono text-content-secondary">{item.repository}</span> {item.file}
+          {item.version && <> @ <span className="font-mono">{item.version.slice(0, 7)}</span></>}
+        </span>
+      ))}
+    </p>
+  );
+};
+
 /** Plan, approve, build, review, pull request: where the build is, as a row of dots. */
 const BuildProgressTrack: React.FC<{ orchestration: ProjectBuildOrchestration; publications: readonly unknown[]; stepIndex: number; attention: boolean }> = ({ orchestration, publications, stepIndex, attention }) => {
   const status = orchestration.run.status;
@@ -376,6 +397,7 @@ export const TaskBuildPanel: React.FC<TaskBuildPanelProps> = ({ issue, build, ca
         </summary>
         <div className="space-y-5 border-t border-divider px-3 py-3">
           <BuildProgressTrack orchestration={orchestration} publications={publications} stepIndex={stepIndex} attention={Boolean(step.attention)} />
+          <MemoryUsed orchestration={orchestration} />
 
           {orchestration.requirements.length > 0 && status !== 'awaiting_plan_approval' && (
             <section aria-label="Checklist" className="space-y-2">

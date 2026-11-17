@@ -338,6 +338,29 @@ function ticketApiError(res: Response, detail: string): ApiRequestError {
 }
 
 /** Latest Orchestrator build for one issue, as the board shows it. */
+/** One repository's memory (its AGENTS.md), as every agent on the project receives it first. */
+export interface ProjectMemoryRepository {
+  repository: string;
+  /** The file found; absent when the repository has no memory file. */
+  file?: string;
+  text: string;
+  characters: number;
+  /** What agents receive after the per-repository and project budgets. */
+  sentCharacters: number;
+  shortened: boolean;
+  origin: 'checkout' | 'commit' | 'github' | 'cache';
+  version?: string;
+  fetchedAt?: string;
+  /** GitHub could not be reached; this is the last copy seen. */
+  stale?: boolean;
+}
+
+export interface ProjectMemory {
+  limits: { PER_REPO: number; TOTAL: number };
+  sentCharacters: number;
+  repositories: ProjectMemoryRepository[];
+}
+
 /** One piece of work running on this desktop right now (GET /activity/running). */
 export interface RunningItem {
   id: string;
@@ -1249,6 +1272,9 @@ export const apiService = {
     fetchJson<RepoTree>(`${projectRepoPath(projectId, repo)}/tree${query({ ref })}`),
   getRepoArchitecture: (projectId: string, repo: string) =>
     fetchJson<RepoArchitecture>(`${projectRepoPath(projectId, repo)}/architecture`),
+  /** Each repository's AGENTS.md as agents receive it; `refresh` skips the short GitHub cache. */
+  getProjectMemory: (projectId: string, refresh = false) =>
+    fetchJson<ProjectMemory>(`/projects/${encodeURIComponent(projectId)}/memory${refresh ? '?refresh=1' : ''}`, { cache: 'no-store' }),
   getRepoFile: (projectId: string, repo: string, path: string, ref: string) =>
     fetchJson<RepoFile>(`${projectRepoPath(projectId, repo)}/file${query({ path, ref })}`),
   compareRepoBranches: (projectId: string, repo: string, base: string, head: string) =>
