@@ -2,7 +2,7 @@ import { EntrySkeleton, LoadingRows } from '@/shared/components/ui/skeleton';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronsUpDown, FileText, FolderKanban, House,
-  CircleHelp, ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, Ticket,
+  ListChecks, LogOut, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, Ticket,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/shared/components/ui/dropdown-menu';
 
@@ -15,11 +15,11 @@ import type {
 import { ClientTicketApiError, clientTicketApi } from './clientApi';
 import { ClientCreateTicketForm } from './ClientCreateTicketForm';
 import { ClientTicketDetail } from './ClientTicketDetail';
-import { ClientQuickGuide } from './ClientQuickGuide';
 import { ClientNotificationBell, projectProposalPortalUpdate, type ClientPortalUpdate } from './ClientNotificationBell';
 import { ClientAccessPanel } from './ClientAccessPanel';
 import { ClientPasswordSignIn } from './ClientPasswordSignIn';
 import { clientTicketProgress } from './clientTicketProgress';
+import { CLIENT_REQUEST_GROUPS, clientRequestGroup, relativeTime } from './clientFriendly';
 import { effectivePortalFilter, portalFilterFromHash } from './clientPortalLink';
 import { secondary, time } from './ticketUi';
 import { ClientOverviewPage, ClientProjectsPage, clientProjectKey } from './ClientProjectPages';
@@ -100,6 +100,8 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
   const navFloating = clientNav.open && !navDocked;
   const clientSidebarRef = useRef<HTMLElement>(null);
   const { setOpen: setClientNavOpen } = clientNav;
+  // Home's "Propose a project" opens the form on the Projects page of the same tab.
+  const [proposeRequest, setProposeRequest] = useState<{ tabId: string; version: number } | null>(null);
   useEffect(() => {
     if (!navFloating) return;
     const onPointerDown = (event: PointerEvent) => {
@@ -142,7 +144,6 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
   const [selectedItemFallback, setSelectedItemFallback] = tabState('selectedItemFallback');
   const [returnToProjects, setReturnToProjects] = tabState('returnToProjects');
   const [navigationCollapsed, setNavigationCollapsed] = tabState('navigationCollapsed');
-  const [quickGuideOpen, setQuickGuideOpen] = useState(false);
   const [, setNotificationProjectFocus] = tabState('notificationProjectFocus');
   const [detail, setDetail] = useState<TicketDetail | null>(null);
   const [messages, setMessages] = useState<ClientTicketMessage[]>([]);
@@ -627,6 +628,10 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
     setNotificationProjectFocus(value => value + 1);
   }
 
+  // When workflow actions are off, no request asks the client for a decision, so Home and the project cards match the request list.
+  const displayQueue = useMemo(() => workflowActionsDisabled && queue
+    ? { ...queue, items: queue.items.map(item => ({ ...item, requestedAction: null })) } : queue, [queue, workflowActionsDisabled]);
+
   if (portalState === 'checking') return <EntrySkeleton label="Checking your sign-in" />;
   if (!inspectionOnly && (portalState === 'signed_out' || portalState === 'unavailable')) return <ClientPasswordSignIn
     unavailable={portalState === 'unavailable'} error={pageError}
@@ -647,7 +652,7 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
       <div className="client-sidebar-brand"><img src={alphaMarkUrl} alt="" /><div><strong>Alphaexplora</strong><small>Client portal</small></div></div>
       <nav className="client-sidebar-nav">
         <button type="button" aria-current={currentNav === 'overview' ? 'page' : undefined} onClick={() => navigate('overview')}>
-          <House size={18} /><span>Overview</span>
+          <House size={18} /><span>Home</span>
         </button>
         <button type="button" aria-current={currentNav === 'projects' ? 'page' : undefined} onClick={() => navigate('projects')}>
           <FolderKanban size={18} /><span>Projects</span>
@@ -656,7 +661,7 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
           <ListChecks size={18} /><span>Requests</span>
         </button>
       </nav>
-      {/* One account row; the guide and sign-out live in its menu, as in the staff sidebar. */}
+      {/* One account row; sign-out lives in its menu, as in the staff sidebar. */}
       <div className="client-sidebar-footer">
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
@@ -675,10 +680,6 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
               {clientEmail && <p className="truncate text-[11px] text-content-muted">{clientEmail}</p>}
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2.5 py-2 text-[13px] text-content-secondary focus:text-content" onSelect={() => setQuickGuideOpen(true)}>
-              <CircleHelp className="h-4 w-4" aria-hidden="true" />Quick guide
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem className="gap-2.5 py-2 text-[13px] text-content-secondary focus:text-content"
               disabled={inspectionOnly || signingOut || Boolean(pending)} onSelect={() => void signOut()}>
               <LogOut className="h-4 w-4" aria-hidden="true" />{signingOut ? 'Signing out…' : 'Log out'}
@@ -687,10 +688,6 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
         </DropdownMenu>
       </div>
     </aside>
-    <ClientQuickGuide isOpen={quickGuideOpen} onClose={() => setQuickGuideOpen(false)} onNavigate={page => {
-      setQuickGuideOpen(false);
-      navigate(page);
-    }} />
 
     <div ref={workspaceFrameRef} className="client-portal-mainview">
       <header className="client-portal-toolbar client-portal-toolbar--shared" aria-label="Client portal navigation and actions">
@@ -705,7 +702,7 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
             onRefresh={() => setRefreshVersion(value => value + 1)} onOpen={openPortalUpdate} />
         </>}>
           <WorkspaceTabStrip label="Client portal pages">
-            {tabs.map(tab => <WorkspaceTab key={tab.id} title={tab.navigation.page === 'overview' ? 'Overview'
+            {tabs.map(tab => <WorkspaceTab key={tab.id} title={tab.navigation.page === 'overview' ? 'Home'
               : tab.navigation.page === 'projects' ? projects?.find(project => clientProjectKey(project) === tab.navigation.selectedProjectKey)?.name ?? 'Projects' : 'Requests'}
               icon={tab.navigation.page === 'overview' ? <House size={14} /> : tab.navigation.page === 'projects' ? <FolderKanban size={14} /> : <ListChecks size={14} />}
               active={activeTabId === tab.id} onActivate={() => { if (activeTabId !== tab.id) changeWorkspaceTab(() => activateTab(tab.id)); }}
@@ -717,21 +714,22 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
           </WorkspaceTabStrip>
           <WorkspaceNewTabMenu boundaryRef={workspaceFrameRef} portalRootRef={portalRootRef} disabled={writing || Boolean(pending) || view === 'create'}
             items={[
-              { id: 'overview', title: 'Overview', subtitle: 'Your shared projects and request updates', icon: <House size={18} /> },
+              { id: 'overview', title: 'Home', subtitle: 'What needs you and your latest updates', icon: <House size={18} /> },
               { id: 'projects', title: 'Projects', subtitle: 'Projects shared by your project manager', icon: <FolderKanban size={18} /> },
               { id: 'requests', title: 'Requests', subtitle: 'Follow requests and message your project manager', icon: <ListChecks size={18} /> },
             ]} onSelect={id => changeWorkspaceTab(() => openTab(id as Page))} />
         </WorkspaceToolbar>
       </header>
-      <div id="client-portal-page" role="tabpanel" aria-label={currentNav === 'overview' ? 'Overview' : currentNav === 'projects' ? 'Projects' : 'Requests'} className="client-portal-main client-portal-main--workspace">
+      <div id="client-portal-page" role="tabpanel" aria-label={currentNav === 'overview' ? 'Home' : currentNav === 'projects' ? 'Projects' : 'Requests'} className="client-portal-main client-portal-main--workspace">
         {inspectionOnly && <p role="status" className="client-portal-notice">Read-only inspection. Sign-in, messages, decisions, uploads, downloads, and requests are disabled.</p>}
         {pageError && <div role="alert" className="client-portal-error"><AlertCircle size={16} />{pageError}</div>}
         {refreshError && <div role="status" className="client-portal-error">{refreshError}</div>}
 
-        {page === 'overview' && <ClientOverviewPage clientName={session?.fullName ?? ''} requests={queue} projects={projects ?? []}
+        {page === 'overview' && <ClientOverviewPage clientName={session?.fullName ?? ''} requests={displayQueue} projects={projects ?? []}
           requestsLoading={!queue && !queueError} requestsError={queueError} projectsLoading={!projects && !projectsError} projectsError={projectsError}
           onOpenRequest={item => openRequest(item)} onOpenProject={openProject} onGoToProjects={() => navigate('projects')}
-          onGoToRequests={() => navigate('requests')} />}
+          onGoToRequests={() => navigate('requests')}
+          onProposeProject={inspectionOnly ? undefined : () => { const tabId = activeTabId; navigate('projects'); setProposeRequest(current => ({ tabId, version: (current?.version ?? 0) + 1 })); }} />}
 
         {page === 'projects' && view === 'create' && createContext && createProject && <div className="client-create-view client-create-view--project">
           <div className="client-create-project-context"><button type="button" className="client-back-link" onClick={cancelCreateForm}><ChevronLeft size={15} />Back to {createProject.name}</button>
@@ -743,7 +741,7 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
         </div>}
         {tabs.filter(tab => tab.navigation.page === 'projects').map(tab => <div key={tab.id} hidden={tab.id !== activeTabId || view === 'create'} className="client-project-tab-pane">
           {tab.id === activeTabId && createError && <p role="alert" className="client-project-error">{createError}</p>}
-          <ClientProjectsPage idPrefix={tab.id} api={api} projects={projects ?? []} loading={!projects && !projectsError} error={projectsError}
+          <ClientProjectsPage idPrefix={tab.id} api={api} projects={projects ?? []} requests={displayQueue?.items ?? []} openProposalVersion={proposeRequest?.tabId === tab.id ? proposeRequest.version : 0} loading={!projects && !projectsError} error={projectsError}
             selectedProjectKey={tab.navigation.selectedProjectKey} onSelectedProjectKeyChange={key => selectProject(tab.id, key)}
             onOpenRequest={item => openRequest(item, true)} onNewRequest={project => void openCreateForm(project)}
             inspectionOnly={inspectionOnly} newRequestEnabled={canStartProjectRequest} newRequestLoading={createLoading}
@@ -755,7 +753,7 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
 
         {page === 'requests' && <div className={`client-requests-page ${selectedId ? 'has-selected-request' : ''}`}>
           <section className={`client-portal-page-heading ${selectedId && !requestListShown ? 'client-mobile-heading-hidden' : ''}`} aria-label="Request overview">
-            <div><p className="client-eyebrow">CLIENT PORTAL</p><h1>Requests</h1><p className="client-page-description">Follow the status of each request and message your project manager.</p></div>
+            <div><h1>Requests</h1><p className="client-page-description">Everything you’ve asked for, and where each one stands.</p></div>
             {queue && queue.counters.needsClient > 0 && !workflowActionsDisabled && <button type="button" className="client-attention-link" onClick={() => { setFilter('needs_client'); setSearchInput(''); setSearch(''); }}>
               <span className="client-attention-dot" /><span><strong>{queue.counters.needsClient} {queue.counters.needsClient === 1 ? 'request needs' : 'requests need'} your attention</strong><small>Open a request to see the next step.</small></span><ArrowRight size={17} />
             </button>}
@@ -805,19 +803,27 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
               </div>
               <div className="client-request-items">
                 {!queue && !queueError ? <LoadingRows label="Loading your requests" rows={4} className="px-3" />
-                  : queue?.items.length ? queue.items.map(item => {
-                    const pendingLink = item.projectLinkStatus === 'pending_review';
-                    return <button key={rowKey(item)} aria-pressed={selectedId === item.id && selectedWorkspaceId === item.workspaceId} disabled={Boolean(pending)}
-                      onClick={() => openRequest(item)} className={`client-request-row ${selectedId === item.id && selectedWorkspaceId === item.workspaceId ? 'is-selected' : ''}`}>
-                      <span className="client-request-icon" aria-hidden="true"><FileText size={18} /></span>
-                      <span className="client-request-copy"><span className="client-request-title">{item.title}</span>
-                        <span className="client-request-meta"><span className="client-request-reference">{item.reference}</span><StatusPill status={item.status} /></span>
-                        <span className={`client-request-progress ${pendingLink ? 'needs-action' : item.requestedAction && !workflowActionsDisabled ? 'needs-action' : ''}`}>
-                          {pendingLink ? `PM review pending${item.requestedProjectName ? ` · ${item.requestedProjectName}` : ''}`
-                            : clientTicketProgress(item.status, workflowActionsDisabled ? null : item.requestedAction).label}</span>
-                        <time dateTime={item.updatedAt}>Updated {time(item.updatedAt)}</time>
-                      </span><ArrowRight size={16} className="client-request-chevron" aria-hidden="true" />
-                    </button>;
+                  : queue?.items.length ? CLIENT_REQUEST_GROUPS.map(group => {
+                    // Grouped by what the client needs to do, so the list reads as a to-do list rather than a ticket queue.
+                    const rows = queue.items.filter(item => clientRequestGroup(workflowActionsDisabled ? { ...item, requestedAction: null } : item) === group.id);
+                    if (!rows.length) return null;
+                    return <div key={group.id} role="group" aria-label={group.label} className={`client-request-group is-${group.id}`}>
+                      <p className="client-request-group-label" aria-hidden="true">{group.label}<span>{rows.length}</span></p>
+                      {rows.map(item => {
+                        const pendingLink = item.projectLinkStatus === 'pending_review';
+                        return <button key={rowKey(item)} aria-pressed={selectedId === item.id && selectedWorkspaceId === item.workspaceId} disabled={Boolean(pending)}
+                          onClick={() => openRequest(item)} className={`client-request-row ${selectedId === item.id && selectedWorkspaceId === item.workspaceId ? 'is-selected' : ''}`}>
+                          <span className="client-request-icon" aria-hidden="true"><FileText size={18} /></span>
+                          <span className="client-request-copy"><span className="client-request-title">{item.title}</span>
+                            <span className="client-request-meta"><StatusPill status={item.status} /></span>
+                            <span className={`client-request-progress ${pendingLink ? 'needs-action' : item.requestedAction && !workflowActionsDisabled ? 'needs-action' : ''}`}>
+                              {pendingLink ? `Your project manager is confirming the project${item.requestedProjectName ? ` · ${item.requestedProjectName}` : ''}`
+                                : clientTicketProgress(item.status, workflowActionsDisabled ? null : item.requestedAction).label}</span>
+                            <time dateTime={item.updatedAt} title={time(item.updatedAt)}>Updated {relativeTime(item.updatedAt)}</time>
+                          </span><ArrowRight size={16} className="client-request-chevron" aria-hidden="true" />
+                        </button>;
+                      })}
+                    </div>;
                   }) : !queueError && <EmptyState title={search ? 'No requests match your search' : 'No requests in this filter'}
                     body={search ? 'Try a shorter search or clear the search field.' : 'Requests from your project manager and requests awaiting review will appear here.'} />}
               </div>

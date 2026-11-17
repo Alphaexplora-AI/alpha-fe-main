@@ -22,6 +22,29 @@ describe('client overview loading', () => {
     expect(ready).toContain('Loading shared projects');
     expect(ready).not.toContain('Loading recent request updates');
   });
+
+  it('leads with what needs the client, then each project with its open requests on the five steps', () => {
+    const callbacks = { onOpenRequest: () => {}, onOpenProject: () => {}, onGoToProjects: () => {}, onGoToRequests: () => {} };
+    const base = { reference: 'REF-1', createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-01T00:00:00Z', closedAt: null,
+      readOnly: false, writesAvailable: true, workspaceId: 'w1', projectId: 'p1', projectName: 'Shop', projectLinkStatus: 'linked' as const,
+      requestedProjectName: null };
+    const items = [
+      { ...base, id: 'a', title: 'Pick the checkout colours', status: 'awaiting_client' as const, requestedAction: 'agree_scope' as const },
+      { ...base, id: 'b', title: 'Add a gift message field', status: 'in_progress' as const, requestedAction: null },
+    ];
+    const html = renderToStaticMarkup(<ClientOverviewPage clientName="Alex Morgan" requestsLoading={false} requestsError=""
+      requests={{ items, nextCursor: null, counters: { kind: 'client', open: 2, needsClient: 1 } }}
+      projects={[{ workspaceId: 'w1', projectId: 'p1', name: 'Shop', updatedAt: '2026-11-01T00:00:00Z', intakeOptionId: 'o1', preview: null }]}
+      projectsLoading={false} projectsError="" onProposeProject={() => {}} {...callbacks} />);
+    expect(html).toContain('1 thing needs you');
+    expect(html).toContain('Review proposal');
+    expect(html).not.toContain('all caught up');
+    expect(html).toContain('2 open requests');
+    expect(html).toContain('Step 4 of 5');
+    expect(html).toContain('Step 3 of 5');
+    expect(html).toContain('Propose a project');
+    expect(html).not.toContain('REF-1');
+  });
 });
 
 describe('client project review presentation', () => {

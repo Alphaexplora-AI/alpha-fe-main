@@ -27,28 +27,33 @@ describe('client ticket detail layout', () => {
     expect(html).toContain('Action needed: ');
     expect(html).toContain('Decision needed');
     expect(html).toContain('Review proposed work');
-    expect(html).toContain('Write a message…');
+    expect(html).toContain('Message your project manager…');
     expect(html).not.toContain('Private messages between you and your project manager');
     expect(html).not.toContain('ticket-chat__header');
     expect(html).toContain('class="client-reply-form"');
     expect(html).toContain('aria-label="Send reply"');
     expect(html).toContain('Hello there');
-    expect(html).toContain('Copy request reference');
-    expect(html).toContain('Show progress');
-    expect(html).toContain('aria-label="Project overview"');
+    expect(html).toContain('aria-label="About this request"');
     expect(html).toContain('role-chat-layout');
-    const sidebar = html.slice(html.indexOf('aria-label="Project overview"'));
+    const header = html.slice(0, html.indexOf('role-chat-layout'));
+    const sidebar = html.slice(html.indexOf('aria-label="About this request"'));
+    // The header leads with a plain sentence and the step tracker; the ticket code is not there.
+    expect(header).toContain('client-detail-summary');
+    expect(header).toContain('client-detail-tracker');
+    expect(header).toContain('aria-label="Request progress"');
+    expect(header).not.toContain('TKT-1');
+    expect(header).not.toContain('client-detail-status-head');
+    // The reference stays available, with its copy button, at the bottom of the side panel.
+    expect(sidebar).toContain('TKT-1');
+    expect(sidebar).toContain('Copy request reference');
     expect(sidebar).toContain('client-sidebar-progress');
-    expect(sidebar).toContain('aria-label="Request progress"');
     expect(sidebar).toContain('id="client-panel-details"');
-    expect(html.slice(0, html.indexOf('aria-label="Project overview"'))).toContain('Hello there');
-    expect(html.slice(0, html.indexOf('aria-label="Project overview"'))).not.toContain('id="client-panel-details"');
-    expect(html.slice(0, html.indexOf('role-chat-layout'))).not.toContain('client-detail-status-head');
+    expect(sidebar).toContain('What you asked for');
+    expect(html.slice(0, html.indexOf('aria-label="About this request"'))).toContain('Hello there');
+    expect(html.slice(0, html.indexOf('aria-label="About this request"'))).not.toContain('id="client-panel-details"');
     expect(html).not.toContain('Orchestrator');
-    expect(html).toContain('aria-controls="client-request-progress"');
     expect(html).toContain('min-h-[44px]');
     // The progress path names the proposed work as the current step and makes the client's turn explicit.
-    expect(html).toContain('aria-label="Request progress"');
     expect(html).toContain('Review proposed work · you');
   });
 });
