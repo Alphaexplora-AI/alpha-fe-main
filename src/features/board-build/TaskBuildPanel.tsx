@@ -9,6 +9,7 @@ import { OrchestrationRecoveryPanel } from '@/features/chat/OrchestrationRecover
 import { BUILD_STEPS, buildStepFor } from '@/features/chat/buildSteps';
 import { buildAgentNodes } from '@/features/chat/useProjectLiveBuild';
 import { isDesktop } from '@/shared/desktop';
+import { githubLink } from '@/shared/lib/githubLink';
 import { apiService, type IssueBuildStatus } from '@/shared/services/apiService';
 import type { Issue, LiveBuildOrchestrationStatus, ProjectBuildOrchestration } from '@/shared/types';
 import { changedFiles, requirementEvidence, useBuildConversation, useTaskBuild } from './useTaskBuild';
@@ -184,6 +185,10 @@ export const TaskBuildPanel: React.FC<TaskBuildPanelProps> = ({ issue, build, ca
       ? (run.publications?.length || run.publication ? 'Build complete. The pull request is open for review.' : 'Report complete. Ready for review.')
       : STATUS_COPY[status] ?? status.replace(/_/g, ' ');
   const publications = run.publications?.length ? run.publications : run.publication ? [run.publication] : [];
+  const pullRequestLinks = publications.flatMap(publication => {
+    const href = githubLink(publication.pullRequestUrl);
+    return href ? [{ href, repository: publication.repository ?? run.repository }] : [];
+  });
   const stoppable = open && !['publishing', 'cancelling'].includes(status);
   const live = ['planning', 'executing', 'validating', 'publishing'].includes(status);
   const historyMessages = conversation.messages.filter(entry => ['build', 'build_milestone'].includes(entry.messageType ?? ''));
@@ -322,12 +327,12 @@ export const TaskBuildPanel: React.FC<TaskBuildPanelProps> = ({ issue, build, ca
         <button type="button" disabled={Boolean(busy)} onClick={() => void act('publish', () => apiService.approveOrchestration(issue.projectId, run.id, run.revision))} className={primary}>Retry publishing</button>
       )}
 
-      {publications.length > 0 && (
+      {pullRequestLinks.length > 0 && (
         <ul className="space-y-1">
-          {publications.map(publication => (
-            <li key={publication.pullRequestUrl}>
-              <a href={publication.pullRequestUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-link hover:text-link-hover">
-                {publication.repository ?? run.repository} pull request <ExternalLink aria-hidden="true" className="h-3 w-3" />
+          {pullRequestLinks.map(link => (
+            <li key={link.href}>
+              <a href={link.href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-link hover:text-link-hover">
+                {link.repository} pull request <ExternalLink aria-hidden="true" className="h-3 w-3" />
               </a>
             </li>
           ))}

@@ -13,6 +13,7 @@ import { useFeatureSpec } from '@/features/board-build/useTaskBuild';
 import { isDesktop } from '@/shared/desktop';
 import { TASK_PRIORITIES, TASK_STATUSES, nextStepFor, statusLabel, taskStage, visibleLabels, type NextStepAction } from './taskFlow';
 import { DatePicker } from '@/shared/components/ui/date-picker';
+import { githubLink } from '@/shared/lib/githubLink';
 
 interface TaskDetailDrawerProps {
   onOpenTask?: (id: string, projectId: string) => void;
@@ -124,6 +125,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const stage = taskStage(issue, buildsHere ? build?.status : undefined);
   const shownStatus = stage.column;
   const labels = visibleLabels(issue.labels);
+  const prLink = githubLink(issue.prUrl);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const dependencyTasks = projectTasks.filter(task => dependencies.includes(task.id));
   const scheduleSummary = [
@@ -155,7 +157,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     buildActive: buildsHere && buildActive,
     canManageIssues,
     canStartBuild: buildsHere && canStartBuild,
-    prUrl: issue.prUrl,
+    prUrl: prLink,
     canHandOffToChat: Boolean(onHandOff),
     hasBuildChat: Boolean(onOpenBuildChat)
   });
@@ -186,7 +188,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       case 'move_review': onRequestStatus(issue, 'review'); break;
       case 'mark_done': onRequestStatus(issue, 'done'); break;
       case 'reopen': onRequestStatus(issue, 'todo'); break;
-      case 'open_pr': if (issue.prUrl) window.open(issue.prUrl, '_blank', 'noopener,noreferrer'); break;
+      case 'open_pr': if (prLink) window.open(prLink, '_blank', 'noopener,noreferrer'); break;
       case 'request_changes':
         onRequestStatus(issue, 'in_progress');
         document.getElementById(`${ids}-comment`)?.focus();
@@ -412,10 +414,10 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               <CopyButton value={shownBranch} label={`branch ${shownBranch}`} />
             </dd>
           </>}
-          {issue.prUrl && <>
+          {prLink && <>
             <dt className="border-b border-divider py-2 text-content-muted">Pull request</dt>
             <dd className="border-b border-divider py-2">
-              <a href={issue.prUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-medium text-link hover:text-link-hover">
+              <a href={prLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 font-medium text-link hover:text-link-hover">
                 <GitPullRequest aria-hidden="true" className="h-3.5 w-3.5" />
                 Open on GitHub
                 <ExternalLink aria-hidden="true" className="h-3 w-3" />

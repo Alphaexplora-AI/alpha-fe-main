@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { apiService } from '@/shared/services/apiService';
 import type { DeliveryAction, DeliveryResponse, OrchestrationDelivery } from '@/shared/types/delivery';
 import { Badge } from '@/shared/components/ui/badge';
+import { githubLink } from '@/shared/lib/githubLink';
 
 export function deliveryActionFor(delivery: OrchestrationDelivery, canControl: boolean, canPromote: boolean): { action: DeliveryAction; label: string } | null {
   if (!canControl || !canPromote) return null;
@@ -13,10 +14,6 @@ export function deliveryActionFor(delivery: OrchestrationDelivery, canControl: b
       return { action: 'enable_uat', label: 'Deliver to UAT automatically' };
     default: return null;
   }
-}
-function githubLink(value: string | undefined): string | undefined {
-  try { const url = new URL(value ?? ''); return url.protocol === 'https:' && url.hostname === 'github.com' ? url.href : undefined; }
-  catch { return undefined; }
 }
 const labels: Record<string, string> = {
   pr_checks: 'PR checks', dev_approval: 'Ready for dev', dev_checks: 'Dev checks', uat_prepare: 'Preparing UAT',
