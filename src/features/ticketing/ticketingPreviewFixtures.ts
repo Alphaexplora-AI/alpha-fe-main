@@ -235,6 +235,20 @@ const localMethods: Partial<typeof pmTicketApi> = {
       lastActivityAt: new Date(Math.max(...tickets.map(ticket => Date.parse(ticket.updatedAt)))).toISOString(),
     }];
   },
+  async getProjectClientPreview(projectId: string) {
+    return { preview: projectId === 'preview-project-ops'
+      ? { repository: 'northstar/operations-dashboard', branch: 'uat' as const, url: 'https://example.com/operations-dashboard-preview' } : null };
+  },
+  async listProjectPreviewClients() {
+    return { items: [{ clientId: 'preview-northstar', displayName: 'Northstar Demo Co.' }] };
+  },
+  async getProjectFeedbackMessages(projectId: string, clientId: string) {
+    const items = projectId === 'preview-project-ops' && clientId === 'preview-northstar' ? [
+      { id: 'feedback-1', clientId, author: 'client' as const, body: 'The new filters look great on desktop. On my phone the date picker is cut off.', createdAt: '2026-10-07T16:20:00+08:00' },
+      { id: 'feedback-2', clientId, author: 'pm' as const, body: 'Thanks! We are fixing the date picker on small screens and will share an update here.', createdAt: '2026-10-08T09:05:00+08:00' },
+    ] : [];
+    return { items, nextCursor: null };
+  },
   async listClientConversations(clientGroupKey: string): Promise<PmClientConversationPage> {
     const items = DEMO_TICKETS.filter(ticket => clientGroupKeyOf(ticket) === clientGroupKey)
       .sort((a, b) => (a.id < b.id ? -1 : 1))

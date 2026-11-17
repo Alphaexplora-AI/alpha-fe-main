@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Download, FileText, MessageSquare, Paperclip } from 'lucide-react';
+import { ArrowUpRight, Download, ExternalLink, FileText, FolderKanban, MessageSquare, Paperclip } from 'lucide-react';
 
 import { LoadingRows } from '@/shared/components/ui/skeleton';
-import type { PmClientConversation, PmClientSummary, PmTicketQueueItem, PmTicketQueueOptions, PmTicketQueuePage } from './pmApi';
+import type { pmTicketApi, PmClientConversation, PmClientSummary, PmProjectFeedbackMessage, PmTicketQueueItem, PmTicketQueueOptions, PmTicketQueuePage } from './pmApi';
 import { pmTicketNextAction } from './pmTicketNextAction';
 import { downloadTicketDocument, type TicketDocument, type TicketDocumentsReadApi } from './ticketDocuments';
 import { time } from './ticketUi';
@@ -246,4 +246,99 @@ export function ClientDocuments({ requests, documentsApi, onOpenRequest }: {
       </li>)}</ul> : <Empty>{documents.length ? 'No files match these filters.' : 'No files have been shared on this client’s requests.'}</Empty>}
     </Panel>
   </div>;
+}
+
+/** One project a client can see, with its client preview and this client's latest project feedback. */
+export interface ClientProjectDetail {
+  projectId: string;
+  name: string;
+  previewPublished: boolean;
+  previewUrl: string | null;
+  /** Newest first, at most three; null when it could not be loaded. */
+  feedback: PmProjectFeedbackMessage[] | null;
+}
+
+type ProjectApi = Pick<typeof pmTicketApi, 'getProjectClientPreview' | 'listProjectPreviewClients' | 'getProjectFeedbackMessages'>;
+
+/** Load each project's preview link and this client's latest feedback; one failing project never hides the others. */
+export async function loadClientProjects(api: ProjectApi, client: PmClientSummary): Promise<ClientProjectDetail[]> {
+  // The queue keys a client account as "client:" + its account ID, which is the feedback thread's client ID.
+  const clientId = client.key.startsWith('client:') ? client.key.slice('client:'.length) : null;
+  return Promise.all(client.projects.map(async project => {
+    const base = { ...project, previewUrl: null, feedback: null };
+    try {
+      const [preview, viewers] = await Promise.all([
+        api.getProjectClientPreview(project.projectId).catch(() => ({ preview: null })),
+        api.listProjectPreviewClients(project.projectId),
+      ]);
+      const viewer = clientId ? viewers.items.find(item => item.clientId === clientId) : undefined;
+      const feedback = viewer
+        ? (await api.getProjectFeedbackMessages(project.projectId, viewer.clientId, { limit: 3 })).items
+          .slice().sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 3)
+        : [];
+      return { ...base, previewUrl: preview.preview?.url ?? null, feedback };
+    } catch {
+      return base;
+    }
+  }));
+}
+
+/** Only a web address can be opened from here; anything else is shown as not shared. */
+const safeUrl = (value: string | null) => {
+  if (!value) return null;
+  try { return ['https:', 'http:'].includes(new URL(value).protocol) ? value : null; } catch { return null; }
+};
+
+export function ClientProjects({ client, projects, knownProjectIds, onOpenProject }: {
+  client: PmClientSummary;
+  projects: ClientProjectDetail[] | null;
+  knownProjectIds: ReadonlySet<string>;
+  onOpenProject: (projectId: string) => void;
+}) {
+  if (!client.projects.length) return <p className="text-[13px] text-content-muted">This client can’t see any projects yet. A project shows here once one of their requests is linked to it and shared with them.</p>;
+  if (!projects) return <LoadingRows label="Loading projects" rows={2} />;
+  return <div className="grid gap-4 lg:grid-cols-2">
+    {projects.map(project => <ClientProjectCard key={project.projectId} client={client} project={project}
+      canOpen={knownProjectIds.has(project.projectId)} onOpenProject={onOpenProject} />)}
+  </div>;
+}
+
+function ClientProjectCard({ client, project, canOpen, onOpenProject }: {
+  client: PmClientSummary;
+  project: ClientProjectDetail;
+  canOpen: boolean;
+  onOpenProject: (projectId: string) => void;
+}) {
+  const url = safeUrl(project.previewUrl);
+  return <section aria-label={project.name} className="min-w-0 rounded-lg border border-divider bg-surface">
+    <div className="flex items-start gap-3 px-4 pb-2 pt-3">
+      <FolderKanban className="mt-0.5 h-4 w-4 shrink-0 text-content-muted" aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <h3 className="truncate text-[13px] font-semibold text-content" title={project.name}>{project.name}</h3>
+        <p className="text-[11.5px] text-content-muted">{project.previewPublished ? 'Preview shared with the client' : 'No preview shared yet'}</p>
+      </div>
+      {/* Only link to a project this PM's project list has; never a dead link. */}
+      {canOpen && <button type="button" onClick={() => onOpenProject(project.projectId)}
+        className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-link hover:text-link-hover">
+        Open project <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>}
+    </div>
+    {url && <a href={url} target="_blank" rel="noreferrer noopener"
+      className="mx-4 mb-2 inline-flex items-center gap-1 text-xs font-medium text-link hover:text-link-hover">
+      Open client preview <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+    </a>}
+    <div className="border-t border-divider px-4 py-3">
+      <h4 className="mb-2 text-[11.5px] font-medium text-content-muted">Latest feedback on this project</h4>
+      {project.feedback === null
+        ? <p className="text-[12.5px] text-content-muted">Project feedback could not be loaded.</p>
+        : project.feedback.length === 0
+          ? <p className="text-[12.5px] text-content-muted">No project feedback from this client yet.</p>
+          : <ul className="space-y-2">{project.feedback.map(message => <li key={message.id} className="min-w-0">
+            <p className="text-[11px] text-content-muted">
+              {message.author === 'client' ? client.displayName : 'You'} · <time dateTime={message.createdAt} title={time(message.createdAt)}>{shortWhen(message.createdAt)}</time>
+            </p>
+            <p className="line-clamp-2 text-[13px] text-content" title={message.body}>{message.body}</p>
+          </li>)}</ul>}
+    </div>
+  </section>;
 }
