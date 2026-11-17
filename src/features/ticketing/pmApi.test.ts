@@ -237,3 +237,21 @@ describe('PM client conversation transport', () => {
     await expect(pmTicketApi.listClientConversations('client:ana')).rejects.toThrow('invalid');
   });
 });
+
+describe('PM client list unread replies', () => {
+  const client = {
+    key: 'client:ana', displayName: 'Ana Cruz', company: null, access: 'active',
+    tickets: { needsPm: 1, waitingClient: 0, open: 2, closed: 0, unlinkedOpen: 0, accessRevoked: 0 },
+    projects: [], lastActivityAt: '2026-11-15T10:00:00.000Z',
+  };
+  it('reads unread replies when the server sends them, and leaves them out when it does not', async () => {
+    vi.spyOn(apiService, 'ticketRequest').mockResolvedValueOnce({ items: [{ ...client, tickets: { ...client.tickets, unreadReplies: 3 } }] } as never)
+      .mockResolvedValueOnce({ items: [client] } as never);
+    expect((await pmTicketApi.listClients())[0].tickets.unreadReplies).toBe(3);
+    expect((await pmTicketApi.listClients())[0].tickets).not.toHaveProperty('unreadReplies');
+  });
+  it('rejects an invalid unread count', async () => {
+    vi.spyOn(apiService, 'ticketRequest').mockResolvedValue({ items: [{ ...client, tickets: { ...client.tickets, unreadReplies: -1 } }] } as never);
+    await expect(pmTicketApi.listClients()).rejects.toThrow('Client list response is invalid.');
+  });
+});

@@ -50,7 +50,11 @@ export interface PmClientSummary {
   displayName: string;
   company: string | null;
   access: 'active' | 'inactive';
-  tickets: { needsPm: number; waitingClient: number; open: number; closed: number; unlinkedOpen: number; accessRevoked: number };
+  tickets: {
+    needsPm: number; waitingClient: number; open: number; closed: number; unlinkedOpen: number; accessRevoked: number;
+    /** Requests with a client reply this PM has not read. Absent from servers that predate it. */
+    unreadReplies?: number;
+  };
   /** Exactly the projects the client portal shows this client. */
   projects: Array<{ projectId: string; name: string; previewPublished: boolean }>;
   lastActivityAt: string;
@@ -105,6 +109,7 @@ export function parsePmClientSummary(value: unknown): PmClientSummary {
     || !tickets || typeof tickets !== 'object' || !Array.isArray(item.projects)) throw invalid();
   const counts = ['needsPm', 'waitingClient', 'open', 'closed', 'unlinkedOpen', 'accessRevoked'] as const;
   if (!counts.every(name => countValue(tickets[name]))) throw invalid();
+  if (tickets.unreadReplies !== undefined && !countValue(tickets.unreadReplies)) throw invalid();
   const projectIds = new Set<string>();
   const projects = item.projects.map(entry => {
     const project = entry as Record<string, unknown> | null;
@@ -115,7 +120,10 @@ export function parsePmClientSummary(value: unknown): PmClientSummary {
   });
   return {
     key: item.key, displayName: item.displayName, company: item.company as string | null, access: item.access,
-    tickets: Object.fromEntries(counts.map(name => [name, tickets[name] as number])) as PmClientSummary['tickets'],
+    tickets: {
+      ...Object.fromEntries(counts.map(name => [name, tickets[name] as number])) as PmClientSummary['tickets'],
+      ...(tickets.unreadReplies === undefined ? {} : { unreadReplies: tickets.unreadReplies as number }),
+    },
     projects, lastActivityAt: item.lastActivityAt,
   };
 }
