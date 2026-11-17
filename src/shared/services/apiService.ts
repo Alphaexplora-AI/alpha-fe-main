@@ -349,6 +349,8 @@ export interface IssueBuildStatus {
   observedAt?: string;
   blocker?: { projectId?: string; issueId?: string; runId?: string; identifier?: string; status: string; repository: string };
   request?: { id: string; status: string; reason?: string };
+  /** The build waits for approval, but its working copy and the reviewed commit are gone: it can only be stopped. */
+  workspaceLost?: boolean;
 }
 
 /** What happened to one repository when cloning a project into a chosen folder. */

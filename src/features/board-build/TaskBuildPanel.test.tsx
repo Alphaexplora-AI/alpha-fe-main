@@ -87,6 +87,17 @@ describe('task build panel', () => {
     expect(html).not.toMatch(/<details open=""/);
   });
 
+  it('offers only a stop once the working copy holding the reviewed work is gone', () => {
+    orchestration = build('awaiting_approval');
+    orchestration.run.workspaceLostReason = 'Build working copy lost: The acme/web working copy is no longer connected to its project checkout. Stop it and plan a new build.';
+    const html = render();
+    expect(html).toContain('This build can no longer be approved.');
+    expect(html).toContain('The acme/web working copy is no longer connected');
+    expect(html).not.toContain('Build working copy lost:');
+    expect(html).toContain('Stop this build');
+    for (const hidden of ['Approve and open pull request', 'Send back', 'Changed files']) expect(html).not.toContain(hidden);
+  });
+
   it('opens the build details by itself only while agents are working', () => {
     orchestration = build('executing');
     expect(render()).toMatch(/<details open=""[^>]*>s*<summary[^>]*>.*?Build details/s);

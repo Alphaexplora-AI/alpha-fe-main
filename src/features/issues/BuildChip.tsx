@@ -48,7 +48,9 @@ export const BuildChip: React.FC<{ build?: IssueBuildStatus }> = ({ build }) => 
   if (build?.fresh === false) return <span className="text-[11px] text-content-muted">Status unavailable</span>;
   if (build?.blocker && !ACTIVE_BUILD_STATUSES.has(build.status)) return <span className="text-[11px] text-status-warning">Waiting for {build.blocker.identifier ?? 'another build'}</span>;
   if (build?.request && ['waiting', 'planning'].includes(build.request.status) && !ACTIVE_BUILD_STATUSES.has(build.status)) return <span className="text-[11px] text-status-info">{build.request.status === 'waiting' ? 'Plan queued' : 'Preparing plan'}</span>;
-  const state = build ? BUILD_STATES[build.status] : undefined;
+  const state = build?.workspaceLost && ACTIVE_BUILD_STATUSES.has(build.status)
+    ? { label: 'Working copy lost', tone: 'alert' as const }
+    : build ? BUILD_STATES[build.status] : undefined;
   if (!state) return null;
   return (
     <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-[11.25px] font-medium ${TEXT[state.tone]}`} title={`Orchestrator build: ${state.label}`}>

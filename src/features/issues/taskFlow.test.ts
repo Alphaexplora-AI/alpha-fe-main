@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { initialsOf, nextStepFor, suggestSubtasks, taskHandoffContext, taskHandoffMessage, taskStage, visibleLabels, type NextStepInput } from './taskFlow';
+import { initialsOf, lostWorkingCopyText, nextStepFor, suggestSubtasks, taskHandoffContext, taskHandoffMessage, taskStage, visibleLabels, type NextStepInput } from './taskFlow';
 
 const base: NextStepInput = {
   status: 'todo',
@@ -94,6 +94,17 @@ describe('nextStepFor', () => {
     expect(step).toMatchObject({ title: 'Pull request open', primary: { action: 'open_pr' }, secondary: { action: 'mark_done' } });
   });
 
+  it('tells the reader a lost build cannot be approved, and where to stop it', () => {
+    const step = nextStepFor({ ...base, buildActive: true, buildStatus: 'awaiting_approval', buildLost: true });
+    expect(step).toMatchObject({ title: 'This build can no longer be approved', primary: { action: 'open_build' } });
+  });
+
+  it('finds the plain sentence in a lost-working-copy reason, even inside an API error', () => {
+    expect(lostWorkingCopyText('API Error [404]: Build working copy lost: The acme/web working copy is gone.')).toBe('The acme/web working copy is gone.');
+    expect(lostWorkingCopyText('API Error [409]: The build changed.')).toBeUndefined();
+    expect(lostWorkingCopyText(undefined)).toBeUndefined();
+  });
+
   it('only offers reopen on done tasks to managers', () => {
     expect(nextStepFor({ ...base, status: 'done' }).secondary?.action).toBe('reopen');
     expect(nextStepFor({ ...base, status: 'done', canManageIssues: false }).secondary).toBeUndefined();
@@ -123,6 +134,10 @@ describe('taskStage', () => {
     for (const build of ['planning', 'executing', 'validating', 'publishing', 'cancelling']) {
       expect(taskStage({ status: 'in_progress' }, build)).toEqual({ column: 'agent_running', needsYou: false, buildOwned: true });
     }
+  });
+
+  it('keeps a build whose working copy is lost out of In review: it can only be stopped', () => {
+    expect(taskStage(todo, 'awaiting_approval', true)).toEqual({ column: 'agent_running', needsYou: true, buildOwned: true });
   });
 
   it('never moves a done task', () => {

@@ -1244,6 +1244,8 @@ export interface ProjectBuildOrchestration {
     currentTaskId?: string;
     pauseRequestedAt?: string;
     stoppedReason?: string;
+    /** Set while a build waits for approval but its working copy, with the reviewed commit, is gone. */
+    workspaceLostReason?: string;
     publication?: {
       repository?: string;
       branchName: string;

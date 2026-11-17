@@ -14,6 +14,7 @@ import { apiService, type IssueBuildStatus } from '@/shared/services/apiService'
 import type { Issue, LiveBuildOrchestrationStatus, ProjectBuildOrchestration } from '@/shared/types';
 import { changedFiles, requirementEvidence, useBuildConversation, useTaskBuild } from './useTaskBuild';
 import { BuildRequestPanel } from './BuildRequestPanel';
+import { lostWorkingCopyText } from '@/features/issues/taskFlow';
 import { ReviewedRecoveryPanel } from './ReviewedRecoveryPanel';
 
 export type SpecState = 'none' | 'draft' | 'approved' | 'stale';
@@ -179,7 +180,9 @@ export const TaskBuildPanel: React.FC<TaskBuildPanelProps> = ({ issue, build, ca
   const covered = orchestration.requirements.filter(requirement => evidence.has(requirement.id)).length;
   const canDecide = can('run_builds') && can('manage_chat') && canControl;
   const canPublish = can('publish_build') && can('run_builds') && can('manage_chat') && canControl;
-  const statusText = status === 'executing'
+  // The working copy and its unpublished commits are gone: nothing can be approved, sent back or resumed.
+  const lostText = open ? lostWorkingCopyText(run.workspaceLostReason) ?? lostWorkingCopyText(run.stoppedReason) ?? lostWorkingCopyText(error) : undefined;
+  const statusText = lostText ? 'This build can no longer be approved.' : status === 'executing'
     ? currentTask ? `Working on: ${currentTask.title}` : 'Building.'
     : finished
       ? (run.publications?.length || run.publication ? 'Build complete. The pull request is open for review.' : 'Report complete. Ready for review.')
@@ -200,12 +203,13 @@ export const TaskBuildPanel: React.FC<TaskBuildPanelProps> = ({ issue, build, ca
 
       <div role="status" className="space-y-1">
         <p className="text-[13px] font-semibold text-content">{statusText}</p>
-        {run.stoppedReason && !['completed'].includes(status) && (
+        {lostText && <p className="text-[12.5px] leading-relaxed text-content-secondary">{lostText}</p>}
+        {run.stoppedReason && !lostText && !['completed'].includes(status) && (
           <details className="text-[12.5px] text-content-secondary"><summary>Technical details · {new Date(run.updatedAt).toLocaleString()}</summary><pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap">{run.stoppedReason}</pre></details>
         )}
       </div>
 
-      {error && <p role="alert" className="rounded-md border border-status-danger-border bg-status-danger-subtle px-3 py-2 text-[12.5px] text-status-danger">{error}</p>}
+      {error && !lostText && <p role="alert" className="rounded-md border border-status-danger-border bg-status-danger-subtle px-3 py-2 text-[12.5px] text-status-danger">{error}</p>}
 
       {status === 'awaiting_plan_approval' && (
         <section aria-label="Plan" className="space-y-3">
@@ -272,15 +276,15 @@ export const TaskBuildPanel: React.FC<TaskBuildPanelProps> = ({ issue, build, ca
               compact
             />
           )
-          : canDecide && snapshot?.orchestrationResumeAvailable && (
+          : canDecide && !lostText && snapshot?.orchestrationResumeAvailable && (
             <button type="button" disabled={Boolean(busy)} onClick={() => void act('resume', () => apiService.resumeOrchestration(issue.projectId, run.id))} className={primary}>
               <Play aria-hidden="true" className="h-3.5 w-3.5" /> Resume
             </button>
           )
       )}
-      {['blocked', 'recovery_required', 'paused'].includes(status) && <ReviewedRecoveryPanel projectId={issue.projectId} runId={run.id} canControl={canDecide} onChanged={() => { void refresh(); onBuildChanged?.(); }} />}
+      {['blocked', 'recovery_required', 'paused'].includes(status) && !lostText && <ReviewedRecoveryPanel projectId={issue.projectId} runId={run.id} canControl={canDecide} onChanged={() => { void refresh(); onBuildChanged?.(); }} />}
 
-      {status === 'awaiting_approval' && (
+      {status === 'awaiting_approval' && !lostText && (
         <section aria-label="Review" className="space-y-3">
           <div className="flex flex-wrap gap-2">
             {canPublish && (
@@ -358,7 +362,7 @@ export const TaskBuildPanel: React.FC<TaskBuildPanelProps> = ({ issue, build, ca
               <button type="button" onClick={() => setConfirmStop(false)} className={secondary}>Keep building</button>
             </div>
           )
-          : <button type="button" onClick={() => setConfirmStop(true)} className="text-[12.5px] font-medium text-content-muted hover:text-status-danger">Stop this build</button>
+          : <button type="button" onClick={() => setConfirmStop(true)} className={lostText ? secondary : 'text-[12.5px] font-medium text-content-muted hover:text-status-danger'}>Stop this build</button>
       )}
 
 

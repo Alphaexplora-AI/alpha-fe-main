@@ -39,6 +39,15 @@ function withoutTrailingPunctuation(value: string, punctuation: string): string 
 /** Build states in which the build, not the person, is what the task waits on. */
 export const BUILD_DECISION_STATUSES = new Set(['awaiting_plan_approval', 'awaiting_approval', 'blocked', 'recovery_required']);
 
+/** The backend's stop reason for a build whose working copy, and its unpublished commits, are gone. */
+export const BUILD_WORKSPACE_LOST_PREFIX = 'Build working copy lost:';
+
+/** The plain sentence inside a lost-working-copy reason or error, or undefined for anything else. */
+export function lostWorkingCopyText(message: string | undefined): string | undefined {
+  const at = message?.indexOf(BUILD_WORKSPACE_LOST_PREFIX) ?? -1;
+  return at < 0 ? undefined : message!.slice(at + BUILD_WORKSPACE_LOST_PREFIX.length).trim();
+}
+
 export interface TaskStage {
   /** The column the task sits in on the list, the board, the calendar and the details panel. */
   column: IssueStatus;
@@ -55,9 +64,11 @@ export interface TaskStage {
  * used to pick its own winner, so one task read Todo in the list, Building on the
  * board and "Ready for your review" in its panel. Every view now asks this.
  */
-export function taskStage(issue: Pick<Issue, 'status'>, buildStatus?: string): TaskStage {
+export function taskStage(issue: Pick<Issue, 'status'>, buildStatus?: string, workspaceLost = false): TaskStage {
   const buildOwned = ACTIVE_BUILD_STATUSES.has(buildStatus ?? '');
   if (issue.status === 'done' || !buildOwned) return { column: issue.status, needsYou: false, buildOwned };
+  // Nothing left to review: the build can only be stopped, so it is not "In review".
+  if (workspaceLost) return { column: 'agent_running', needsYou: true, buildOwned };
   return { ...buildStage(buildStatus as string), buildOwned };
 }
 
@@ -170,6 +181,8 @@ export interface NextStepInput {
   status: IssueStatus;
   /** Latest Orchestrator build status for the task, if any. */
   buildStatus?: string;
+  /** The build's working copy and its unpublished work are gone: it can only be stopped. */
+  buildLost?: boolean;
   buildActive: boolean;
   canManageIssues: boolean;
   canStartBuild: boolean;
@@ -194,6 +207,9 @@ export function nextStepFor(input: NextStepInput): NextStep {
   if (['waiting', 'planning'].includes(input.requestStatus ?? '') && !input.buildActive) return { title: input.requestStatus === 'waiting' ? 'Plan queued' : 'Preparing plan', text: 'Code changes still require plan approval.', primary: { label: 'Open task build', action: 'open_build' } };
   // Decisions happen on the task. The task's chat thread is a secondary way in while the Chat tab is on.
   const chat = input.hasBuildChat ? { label: 'Open in chat', action: 'open_chat' as const } : undefined;
+  if (input.buildActive && input.buildLost) {
+    return { title: 'This build can no longer be approved', text: 'Its working copy was deleted with the project folder, so the reviewed changes cannot be published. Stop it in the Build tab, then plan a new build.', primary: { label: 'Open the build', action: 'open_build' }, secondary: chat };
+  }
   if (input.buildActive) {
     switch (input.buildStatus) {
       case 'awaiting_plan_approval':

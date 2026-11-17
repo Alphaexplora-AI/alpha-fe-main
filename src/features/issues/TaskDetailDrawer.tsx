@@ -122,7 +122,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const spec = useFeatureSpec(issue, isDesktop);
   const specState: SpecState = !spec.record ? 'none' : spec.record.status === 'approved' ? (spec.record.stale ? 'stale' : 'approved') : 'draft';
   // The same stage the list and the board use, so all three say one thing.
-  const stage = taskStage(issue, buildsHere ? build?.status : undefined);
+  const stage = taskStage(issue, buildsHere ? build?.status : undefined, buildsHere && build?.workspaceLost);
   const shownStatus = stage.column;
   const labels = visibleLabels(issue.labels);
   const prLink = githubLink(issue.prUrl);
@@ -151,6 +151,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const step = nextStepFor({
     status: issue.status,
     buildStatus: buildsHere ? build?.status : undefined,
+    buildLost: buildsHere && build?.workspaceLost,
     blocker: buildsHere ? build?.blocker : undefined,
     fresh: buildsHere ? build?.fresh : undefined,
     requestStatus: buildsHere ? build?.request?.status : undefined,

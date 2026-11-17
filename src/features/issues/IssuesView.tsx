@@ -205,7 +205,7 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
     canRunBuilds && buildStatusFresh && issue.status !== 'done' && !hasActiveBuild(issue) &&
     !issueBuilds[issue.id]?.blocker && !['waiting', 'planning'].includes(issueBuilds[issue.id]?.request?.status ?? '');
   const boardColumnFor = (issue: Issue): IssueStatus =>
-    taskStage(issue, issueBuilds[issue.id]?.status).column;
+    taskStage(issue, issueBuilds[issue.id]?.status, issueBuilds[issue.id]?.workspaceLost).column;
 
   /** Assigned to the person looking at the board. */
   const isMine = (issue: Issue) => Boolean(identity && issue.assignedHuman && (
