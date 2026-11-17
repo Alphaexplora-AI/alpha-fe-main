@@ -338,6 +338,27 @@ function ticketApiError(res: Response, detail: string): ApiRequestError {
 }
 
 /** Latest Orchestrator build for one issue, as the board shows it. */
+/** One piece of work running on this desktop right now (GET /activity/running). */
+export interface RunningItem {
+  id: string;
+  kind: 'agent' | 'chat';
+  projectId?: string;
+  issueId?: string;
+  identifier?: string;
+  /** The person's own chat a reply is being written in. */
+  threadId?: string;
+  title: string;
+  agentName?: string;
+  activity: string;
+  startedAt?: string;
+}
+
+/** Live work from the engine's processes, and runs saved as running that nothing is executing. */
+export interface RunningWork {
+  running: RunningItem[];
+  interrupted: RunningItem[];
+}
+
 export interface IssueBuildStatus {
   branchName?: string;
   issueId: string;
@@ -754,6 +775,7 @@ export const apiService = {
 
   /** The latest Orchestrator build per issue, for board status chips. Desktop only. */
   getIssueBuildStatuses: () => fetchJson<IssueBuildStatus[]>('/issues/build-status'),
+  getRunningWork: () => fetchJson<RunningWork>('/activity/running', { cache: 'no-store' }),
   getProjectBuildSnapshot: async (projectId: string, runId?: string, threadId?: string) => {
     const query = new URLSearchParams();
     if (runId) query.set('runId', runId);

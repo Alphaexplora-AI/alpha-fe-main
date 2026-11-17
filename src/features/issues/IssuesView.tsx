@@ -361,11 +361,6 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
   };
 
   // Personal filters must not hide active work elsewhere in this project.
-  const runningAgentsCount = useMemo(
-    () => issues.filter(issue => (selectedProject === 'all' || issue.projectId === selectedProject)
-      && ['executing', 'validating', 'publishing'].includes(issueBuilds[issue.id]?.status ?? '')).length,
-    [issues, selectedProject, issueBuilds]
-  );
 
   const clearDragState = () => {
     setDraggedIssueId(null);
@@ -656,17 +651,8 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
                 <span>Alpha</span>
               </button>
             )}
-            {/* Active work remains visible as plain status text. */}
-            <div className="flex items-center gap-1.5 px-1 py-1.5 text-xs text-content-muted">
-              {runningAgentsCount > 0 ? (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                  <span className="text-status-info font-medium">{runningAgentsCount} builds running</span>
-                </>
-              ) : (
-                <span>{buildStatusFresh ? 'No agents running' : 'Build status unavailable'}</span>
-              )}
-            </div>
+            {/* What is running is in the top bar on every page; this only flags stale build data. */}
+            {!buildStatusFresh && <span className="px-1 py-1.5 text-xs text-content-muted">Build status unavailable</span>}
 
             {/* Filter Toggle Button */}
             <button
