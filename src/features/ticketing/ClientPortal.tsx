@@ -26,7 +26,10 @@ import { ClientOverviewPage, ClientProjectsPage, clientProjectKey } from './Clie
 import { StatusPill } from './ClientProjectSections';
 import { Toast, type ToastTone } from '@/shared/components/ui/toast';
 import { WorkspaceToolbar, WorkspaceTabStrip, WorkspaceTab, WorkspaceNewTabMenu } from '@/shared/layout/WorkspaceToolbar';
-import { isEmptySidebarSpace, useSidebarDocked, useSidebarToggle } from '@/shared/layout/useSidebarToggle';
+import { useSidebarToggle } from '@/shared/layout/useSidebarToggle';
+import { SidebarFrame } from '@/shared/layout/SidebarFrame';
+import { sidebarRow } from '@/features/chat/ProjectChatSidebar';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';
 import { useClientWorkspaceTabs, type ClientPage as Page } from './clientWorkspaceTabs';
 import './clientDesignTokens.css';
 import './clientPortal.css';
@@ -92,32 +95,12 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
     typeof window === 'undefined' ? 'all' : portalFilterFromHash(window.location.hash));
   const portalRootRef = useRef<HTMLElement>(null);
   const workspaceFrameRef = useRef<HTMLDivElement>(null);
-  // Same sidebar behavior as the staff app: no hover; double-click empty sidebar
+  // The staff sidebar's frame (SidebarFrame): no hover; double-click empty sidebar
   // space or press Ctrl+B. Open on wide windows pushes the page over; on narrow
   // ones it floats and closes on navigation, Escape or an outside click.
   const clientNav = useSidebarToggle('alpha.client-sidebar');
-  const navDocked = useSidebarDocked();
-  const navFloating = clientNav.open && !navDocked;
-  const clientSidebarRef = useRef<HTMLElement>(null);
-  const { setOpen: setClientNavOpen } = clientNav;
   // Home's "Propose a project" opens the form on the Projects page of the same tab.
   const [proposeRequest, setProposeRequest] = useState<{ tabId: string; version: number } | null>(null);
-  useEffect(() => {
-    if (!navFloating) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      // Menus opened from the sidebar render outside it (data-sidebar-overlay), like the staff sidebar's.
-      if (clientSidebarRef.current?.contains(target as Node) || (target instanceof Element && target.closest('[data-sidebar-overlay]'))) return;
-      setClientNavOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setClientNavOpen(false); };
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [navFloating, setClientNavOpen]);
   const [portalState, setPortalState] = useState<PortalState>('checking');
   const [session, setSession] = useState<ClientSession | null>(null);
   const [phaseWorkflowEnabled, setPhaseWorkflowEnabled] = useState(false);
@@ -593,7 +576,6 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
   }
 
   function navigate(nextPage: Page) {
-    if (navFloating) setClientNavOpen(false);
     setPage(nextPage); setView('portal'); setCreateContext(null); setCreateProject(null); setCreateError('');
     if (nextPage !== 'requests') { setReturnToProjects(false); setQueueNotice(''); }
     if (nextPage === 'projects') setSelectedProjectKey(null);
@@ -646,48 +628,70 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
   const clientName = session?.fullName?.trim() || 'Client';
   const clientInitials = clientName.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
 
-  return <main ref={portalRootRef} className={`client-portal-shell client-portal-shell--workspace${page === 'requests' && selectedId ? ' client-portal-shell--chat-open' : ''}${inspectionOnly ? ' client-portal-shell--inspection' : ''}${clientNav.open && navDocked ? ' client-portal-shell--nav-open' : ''}`}>
-    <aside ref={clientSidebarRef} className={`client-sidebar${clientNav.open ? ' is-open' : ''}`} aria-label="Client portal navigation"
-      onDoubleClick={event => { if (isEmptySidebarSpace(event.target)) clientNav.toggle(); }}>
-      <div className="client-sidebar-brand"><img src={alphaMarkUrl} alt="" /><div><strong>Alphaexplora</strong><small>Client portal</small></div></div>
-      <nav className="client-sidebar-nav">
-        <button type="button" aria-current={currentNav === 'overview' ? 'page' : undefined} onClick={() => navigate('overview')}>
-          <House size={18} /><span>Home</span>
-        </button>
-        <button type="button" aria-current={currentNav === 'projects' ? 'page' : undefined} onClick={() => navigate('projects')}>
-          <FolderKanban size={18} /><span>Projects</span>
-        </button>
-        <button type="button" aria-current={currentNav === 'requests' ? 'page' : undefined} onClick={() => navigate('requests')}>
-          <ListChecks size={18} /><span>Requests</span>
-        </button>
-      </nav>
-      {/* One account row; sign-out lives in its menu, as in the staff sidebar. */}
-      <div className="client-sidebar-footer">
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className="client-sidebar-account" aria-label={`Account menu for ${clientName}`}>
-              <span className="client-sidebar-avatar" aria-hidden="true">{clientInitials}</span>
-              <span className="client-sidebar-account-copy">
-                <strong title={clientName}>{clientName}</strong><small>Client</small>
-              </span>
-              <ChevronsUpDown size={14} className="client-sidebar-account-chevron" aria-hidden="true" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side={clientNav.open ? 'top' : 'right'} align="start" sideOffset={6} data-sidebar-overlay=""
-            className="w-[min(15rem,calc(100vw-1rem))] rounded-xl p-1.5">
-            <div className="min-w-0 px-2 py-2">
-              <p className="truncate text-[13px] font-medium text-content">{clientName}</p>
-              {clientEmail && <p className="truncate text-[11px] text-content-muted">{clientEmail}</p>}
-            </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2.5 py-2 text-[13px] text-content-secondary focus:text-content"
-              disabled={inspectionOnly || signingOut || Boolean(pending)} onSelect={() => void signOut()}>
-              <LogOut className="h-4 w-4" aria-hidden="true" />{signingOut ? 'Signing out…' : 'Log out'}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </aside>
+  return <main ref={portalRootRef} className={`client-portal-shell client-portal-shell--workspace${page === 'requests' && selectedId ? ' client-portal-shell--chat-open' : ''}${inspectionOnly ? ' client-portal-shell--inspection' : ''}`}>
+    {/* The PM and Developer sidebar, row for row: SidebarFrame's 56px rail that opens to a
+        resizable 200px panel, the workspace-style header, 32px rows and the account footer. */}
+    <SidebarFrame collapsed={!clientNav.open} setCollapsed={collapsed => clientNav.setOpen(!collapsed)}
+      ariaLabel="Client portal navigation" widthStorageKey="client_sidebar_width" expandedWidth={200}>
+      {({ compact, closeIfFloating }) => <>
+        <div className={'shrink-0 px-2 pb-2 pt-[6px] ' + (compact ? 'flex flex-col items-center gap-1.5' : 'space-y-2')}>
+          <div className={'flex h-[32px] min-w-0 items-center rounded-lg ' + (compact ? 'w-[36px] justify-center px-0' : 'gap-2 px-1.5')}
+            title={compact ? 'Alphaexplora client portal' : undefined}>
+            <span className="flex h-[28px] w-[28px] flex-shrink-0 items-center justify-center">
+              <img src={alphaMarkUrl} alt="" aria-hidden="true" className="h-[24px] w-[20px] object-contain invert dark:invert-0" />
+            </span>
+            {!compact && <span className="truncate text-sm font-semibold text-content">Alphaexplora</span>}
+          </div>
+        </div>
+        <nav aria-label="Client portal pages" className={'flex min-h-0 flex-1 flex-col overflow-hidden pb-1 ' + (compact ? 'items-center gap-0.5 px-1.5' : 'px-2')}>
+          {([['overview', 'Home', House], ['projects', 'Projects', FolderKanban], ['requests', 'Requests', ListChecks]] as const).map(([id, label, Icon]) => {
+            const active = currentNav === id;
+            const button = <button key={id} type="button" aria-label={label} aria-current={active ? 'page' : undefined}
+              onClick={() => { navigate(id); closeIfFloating(); }}
+              className={(compact ? 'grid h-9 w-9 place-items-center rounded-lg transition-colors ' : sidebarRow + ' w-full gap-2.5 ')
+                + (active ? 'bg-selected font-medium text-selected-content hover:bg-selected' : 'text-content-secondary hover:bg-surface-high hover:text-content')}>
+              <span className={active ? 'text-link' : 'text-content-muted'}><Icon className="h-4 w-4" aria-hidden="true" /></span>
+              {!compact && <span className="truncate">{label}</span>}
+            </button>;
+            return compact
+              ? <Tooltip key={id}><TooltipTrigger asChild>{button}</TooltipTrigger><TooltipContent side="right">{label}</TooltipContent></Tooltip>
+              : button;
+          })}
+        </nav>
+        {/* The account menu holds sign-out, so the footer stays one quiet row, as for staff. */}
+        <div className={'shrink-0 px-2 pb-2 pt-1 ' + (compact ? 'flex justify-center' : '')}>
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button type="button" aria-label={`Account menu for ${clientName}`}
+                className={'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus data-[state=open]:bg-surface-high '
+                  + (compact ? 'grid h-9 w-9 place-items-center rounded-full hover:bg-surface-high' : 'flex w-full min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left hover:bg-surface-high')}>
+                <span aria-hidden="true" className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-divider bg-surface-raised text-xs font-semibold text-content">{clientInitials}</span>
+                {!compact && <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-medium text-content" title={clientName}>{clientName}</span>
+                  <span className="block truncate text-[11px] text-content-muted">Client</span>
+                </span>}
+                {!compact && <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-content-muted" aria-hidden="true" />}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side={compact ? 'right' : 'top'} align="start" sideOffset={6} data-sidebar-overlay=""
+              className="w-[min(15rem,calc(100vw-1rem))] rounded-xl p-1.5">
+              <div className="flex items-center gap-2.5 px-2 py-2">
+                <span aria-hidden="true" className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-divider bg-surface-raised text-xs font-semibold text-content">{clientInitials}</span>
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-medium text-content">{clientName}</p>
+                  {clientEmail && <p className="truncate text-[11px] text-content-muted">{clientEmail}</p>}
+                </div>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="gap-2.5 py-2 text-[13px] text-content-secondary focus:text-content"
+                disabled={inspectionOnly || signingOut || Boolean(pending)} onSelect={() => void signOut()}>
+                <LogOut className="h-4 w-4" aria-hidden="true" />{signingOut ? 'Signing out…' : 'Log out'}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </>}
+    </SidebarFrame>
 
     <div ref={workspaceFrameRef} className="client-portal-mainview">
       <header className="client-portal-toolbar client-portal-toolbar--shared" aria-label="Client portal navigation and actions">
