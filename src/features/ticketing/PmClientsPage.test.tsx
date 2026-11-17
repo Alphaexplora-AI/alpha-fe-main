@@ -7,7 +7,7 @@ vi.mock('@/app/AppContext', () => ({ useApp: () => ({}), useTabSessionState: <T,
 vi.mock('./PmTicketsView', () => ({ PmTicketsView: () => null }));
 
 import { ApiRequestError } from '@/shared/services/apiService';
-import { PmClientsView, clientsLoadError, type PmClientsViewProps } from './PmClientsPage';
+import { PmClientsView, clientInitials, clientsLoadError, clientsSummary, filterClients, type PmClientsViewProps } from './PmClientsPage';
 import type { PmClientSummary } from './pmApi';
 
 const ana: PmClientSummary = {
@@ -117,5 +117,48 @@ describe('A client’s added tabs', () => {
     const html = render({ selectedKey: 'client:ana', section: 'overview' });
     expect(html).not.toContain('Conversations');
     expect(html).toContain('Tickets for client:ana');
+  });
+});
+
+describe('Client list upgrades', () => {
+  it('shows initials and the projects a client can see', () => {
+    const html = render();
+    expect(html).toContain('>AC<');
+    expect(html).toContain('Resort Co · Resort Website, Hidden Project');
+  });
+
+  it('searches project names as well as names and companies', () => {
+    expect(filterClients([ana, ben], 'resort website', false).map(client => client.key)).toEqual(['client:ana']);
+    expect(filterClients([ana, ben], 'ben', false).map(client => client.key)).toEqual(['client:ben']);
+  });
+
+  it('keeps only clients needing the PM when Needs you is on', () => {
+    expect(filterClients([ana, ben], '', true).map(client => client.key)).toEqual(['client:ana']);
+    const html = render({ needsYouOnly: true, onNeedsYouOnly: () => undefined });
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).not.toContain('Ben Go');
+  });
+
+  it('offers a way back when nobody needs the PM', () => {
+    const html = render({ clients: [ben], needsYouOnly: true, onNeedsYouOnly: () => undefined });
+    expect(html).toContain('No clients need you right now.');
+    expect(html).toContain('Show all clients');
+  });
+
+  it('hides the toggle when the parent does not handle it', () => {
+    expect(render()).not.toContain('aria-pressed');
+  });
+
+  it('summarizes what is waiting across clients', () => {
+    expect(clientsSummary([ana, ben])).toBe('1 client needs you');
+    expect(clientsSummary([{ ...ana, tickets: { ...ana.tickets, waitingClient: 2 } }, { ...ben, tickets: { ...ben.tickets, needsPm: 1 } }]))
+      .toBe('2 clients need you · 2 requests are waiting on the client');
+    expect(clientsSummary([ben])).toBe('');
+    expect(render()).toContain('1 client needs you');
+  });
+
+  it('makes initials from up to two words', () => {
+    expect(clientInitials('Ana Maria Cruz')).toBe('AM');
+    expect(clientInitials('  ')).toBe('?');
   });
 });

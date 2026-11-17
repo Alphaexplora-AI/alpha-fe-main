@@ -38,6 +38,25 @@ export function clientsLoadError(error: unknown): string {
 
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 const shortDate = (value: string) => new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+/** Up to two initials for a client's avatar. */
+export const clientInitials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(part => part[0] ?? '').join('').toUpperCase() || '?';
+
+/** Clients matching a search (name, company or project) and, optionally, only those needing the PM. */
+export function filterClients(clients: readonly PmClientSummary[], search: string, needsYouOnly: boolean): PmClientSummary[] {
+  const query = search.trim().toLowerCase();
+  return clients.filter(client => (!needsYouOnly || client.tickets.needsPm > 0) && (!query
+    || [client.displayName, client.company ?? '', ...client.projects.map(project => project.name)].join(' ').toLowerCase().includes(query)));
+}
+
+/** One line on what is waiting, across all clients; empty when nothing is. */
+export function clientsSummary(clients: readonly PmClientSummary[]): string {
+  const needYou = clients.filter(client => client.tickets.needsPm > 0).length;
+  const waiting = clients.reduce((total, client) => total + client.tickets.waitingClient, 0);
+  return [
+    needYou > 0 && `${plural(needYou, 'client')} ${needYou === 1 ? 'needs' : 'need'} you`,
+    waiting > 0 && `${plural(waiting, 'request')} ${waiting === 1 ? 'is' : 'are'} waiting on the client`,
+  ].filter(Boolean).join(' · ');
+}
 
 /**
  * Clients: every client account in the workspace, those needing the PM first.
@@ -87,6 +106,7 @@ export function PmClientsWorkspace({ api = pmTicketApi, documentsApi = pmTicketD
   const [loading, setLoading] = useState(true);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [search, setSearch] = useState('');
+  const [needsYouOnly, setNeedsYouOnly] = useState(false);
   const [requests, setRequests] = useState<PmTicketQueueItem[] | null>(null);
   const [conversations, setConversations] = useState<PmClientConversation[] | null>(null);
   const [conversationsError, setConversationsError] = useState('');
@@ -130,6 +150,7 @@ export function PmClientsWorkspace({ api = pmTicketApi, documentsApi = pmTicketD
   const openRequest = (requestId: string) => { setOpenRequestId(requestId); onSection('tickets'); };
 
   return <PmClientsView clients={clients} error={error} loading={loading} search={search} onSearch={setSearch}
+    needsYouOnly={needsYouOnly} onNeedsYouOnly={setNeedsYouOnly}
     selectedKey={selectedKey} onSelect={key => { onSelectKey(key); if (key) onSection('overview'); }}
     section={section} onSection={next => { if (next === 'tickets') setOpenRequestId(null); onSection(next); }}
     knownProjectIds={knownProjectIds} onRefresh={refresh} onOpenProject={onOpenProject} onOpenInquiries={onOpenInquiries}
@@ -152,6 +173,9 @@ export interface PmClientsViewProps {
   loading: boolean;
   search: string;
   onSearch: (value: string) => void;
+  /** Show only clients with requests waiting on the PM. The toggle appears when `onNeedsYouOnly` is given. */
+  needsYouOnly?: boolean;
+  onNeedsYouOnly?: (value: boolean) => void;
   selectedKey: string | null;
   onSelect: (key: string | null) => void;
   section: ClientSection;
@@ -171,13 +195,11 @@ export interface PmClientsViewProps {
 
 /** The Clients list and a client's page, from props alone. */
 export function PmClientsView({ clients, error, loading, search, onSearch, selectedKey, onSelect, section, onSection,
+  needsYouOnly = false, onNeedsYouOnly,
   knownProjectIds, onRefresh, onOpenProject, onOpenInquiries, renderTickets, renderOverview, renderConversations, renderDocuments }: PmClientsViewProps) {
   const selected = clients?.find(client => client.key === selectedKey) ?? null;
-  const visible = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return (clients ?? []).filter(client => !query
-      || `${client.displayName} ${client.company ?? ''}`.toLowerCase().includes(query));
-  }, [clients, search]);
+  const visible = useMemo(() => filterClients(clients ?? [], search, needsYouOnly), [clients, search, needsYouOnly]);
+  const summary = useMemo(() => clientsSummary(clients ?? []), [clients]);
 
   if (selected) {
     const optional: Partial<Record<ClientSection, ((client: PmClientSummary) => ReactNode) | undefined>> = {
@@ -263,11 +285,16 @@ export function PmClientsView({ clients, error, loading, search, onSearch, selec
         <h1 className="text-lg font-semibold text-content">Clients</h1>
         <span className="text-xs tabular-nums text-content-muted">{clients ? clients.length : '…'}</span>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {onNeedsYouOnly && <button type="button" aria-pressed={needsYouOnly} onClick={() => onNeedsYouOnly(!needsYouOnly)}
+          className={`inline-flex h-8 items-center rounded-md border px-2.5 text-xs font-medium transition-colors ${needsYouOnly
+            ? 'border-transparent bg-selected text-selected-content' : 'border-control text-content-secondary hover:bg-surface-high hover:text-content'}`}>
+          Needs you
+        </button>}
         <label className="flex h-8 w-64 max-w-full items-center gap-2 rounded-md border border-control bg-well px-2.5 focus-within:ring-2 focus-within:ring-focus">
           <Search className="h-3.5 w-3.5 text-content-muted" aria-hidden="true" />
           <span className="sr-only">Search clients</span>
-          <input value={search} onChange={event => onSearch(event.target.value)} placeholder="Search clients…" className="min-w-0 flex-1 bg-transparent text-xs text-content placeholder-content-muted focus:outline-none" />
+          <input value={search} onChange={event => onSearch(event.target.value)} placeholder="Search clients or projects…" className="min-w-0 flex-1 bg-transparent text-xs text-content placeholder-content-muted focus:outline-none" />
         </label>
         <button type="button" onClick={onRefresh} disabled={loading} title="Refresh clients"
           className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-content-secondary hover:bg-surface-high hover:text-content disabled:opacity-50">
@@ -277,6 +304,7 @@ export function PmClientsView({ clients, error, loading, search, onSearch, selec
     </header>
 
     <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
+      {!error && summary && <p className="mb-2 text-xs text-content-secondary">{summary}</p>}
       {error ? <p role="alert" className="rounded-md border border-status-danger-border bg-status-danger-subtle px-3 py-2 text-[13px] text-status-danger">{error}</p>
         : loading && !clients ? <LoadingRows label="Loading clients" layout="table" rows={4} />
         : clients && clients.length === 0 ? <div className="flex flex-col items-center gap-2 py-16 text-center">
@@ -298,25 +326,39 @@ export function PmClientsView({ clients, error, loading, search, onSearch, selec
           </thead>
           <tbody>
             {visible.map(client => <tr key={client.key} className="border-b border-divider hover:bg-surface-high/40">
-              <td className="py-3 pr-3">
-                <button type="button" onClick={() => onSelect(client.key)} className="block min-w-0 text-left">
-                  <span className="block truncate font-medium text-content hover:text-link">{client.displayName}</span>
-                  {client.company && <span className="block truncate text-[11.5px] text-content-muted">{client.company}</span>}
+              <td className="max-w-0 py-2.5 pr-3">
+                <button type="button" onClick={() => onSelect(client.key)} className="flex w-full min-w-0 items-center gap-2.5 text-left">
+                  <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-divider bg-surface-raised text-[11px] font-semibold text-content">{clientInitials(client.displayName)}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-content hover:text-link">{client.displayName}</span>
+                    <ClientSubline client={client} />
+                  </span>
                 </button>
               </td>
-              <td className="py-3 pr-3">{client.tickets.needsPm > 0
+              <td className="py-2.5 pr-3">{client.tickets.needsPm > 0
                 ? <span className="rounded-full bg-selected px-2 py-0.5 text-[11.5px] font-semibold text-selected-content">{client.tickets.needsPm}</span>
                 : <span className="text-content-muted">—</span>}</td>
-              <td className="hidden py-3 pr-3 tabular-nums text-content-secondary sm:table-cell">{client.tickets.open}</td>
-              <td className="hidden py-3 pr-3 tabular-nums text-content-secondary md:table-cell">{client.projects.length}</td>
-              <td className="hidden py-3 pr-3 md:table-cell"><AccessBadge access={client.access} compact /></td>
-              <td className="py-3 text-right tabular-nums text-content-muted">{shortDate(client.lastActivityAt)}</td>
+              <td className="hidden py-2.5 pr-3 tabular-nums text-content-secondary sm:table-cell">{client.tickets.open}</td>
+              <td className="hidden py-2.5 pr-3 tabular-nums text-content-secondary md:table-cell">{client.projects.length}</td>
+              <td className="hidden py-2.5 pr-3 md:table-cell"><AccessBadge access={client.access} compact /></td>
+              <td className="py-2.5 text-right tabular-nums text-content-muted">{shortDate(client.lastActivityAt)}</td>
             </tr>)}
           </tbody>
         </table>}
-      {clients && clients.length > 0 && visible.length === 0 && <p className="py-6 text-center text-xs text-content-muted">No clients match “{search.trim()}”.</p>}
+      {clients && clients.length > 0 && visible.length === 0 && <div className="py-6 text-center text-xs text-content-muted">
+        <p>{search.trim() ? `No clients match “${search.trim()}”${needsYouOnly ? ' among those needing you' : ''}.` : 'No clients need you right now.'}</p>
+        {needsYouOnly && onNeedsYouOnly && <button type="button" onClick={() => onNeedsYouOnly(false)} className="mt-1 font-semibold text-link hover:text-link-hover">Show all clients</button>}
+      </div>}
     </div>
   </div>;
+}
+
+/** Company and the projects the client can see, one muted line. */
+function ClientSubline({ client }: { client: PmClientSummary }) {
+  const projects = client.projects.map(project => project.name).join(', ');
+  const line = [client.company, projects].filter(Boolean).join(' · ');
+  if (!line) return null;
+  return <span className="block truncate text-[11.5px] text-content-muted" title={line}>{line}</span>;
 }
 
 function AccessBadge({ access, compact = false }: { access: PmClientSummary['access']; compact?: boolean }) {
