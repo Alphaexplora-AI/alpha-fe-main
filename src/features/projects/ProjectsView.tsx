@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { CreateProjectModal } from '@/features/projects/CreateProjectModal';
 import { ProjectResourcesPanel } from '@/features/projects/ProjectResourcesPanel';
+import { ProjectMemorySection } from '@/features/projects/ProjectMemorySection';
 import { IssuesView } from '@/features/issues/IssuesView';
 import { ProjectRepositoryView } from '@/features/projects/repository/ProjectRepositoryView';
 import { ProjectClientPreviewPanel } from '@/features/projects/ProjectClientPreviewPanel';
@@ -332,6 +333,8 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ onOpenNewIssue }) =>
                     {selectedProject.description || 'No ground rules yet.'}
                   </p>
                 </section>
+                {/* What every agent reads first; for the project team, never clients. */}
+                {role !== 'client' && <ProjectMemorySection key={selectedProject.id} projectId={selectedProject.id} />}
                 {showAi && orchestrationSettings && !orchestrationSettings.available && (
                   <p role="status" className="rounded-xl border border-status-warning-border bg-status-warning-subtle p-3 text-status-warning">
                     Builds cannot run on this desktop: {orchestrationSettings.reason ?? 'the build service is unavailable.'}

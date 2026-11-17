@@ -169,3 +169,16 @@ describe('feature spec panel', () => {
     expect(html).toContain('approve it again before the next build');
   });
 });
+
+describe('repository memory in the build details', () => {
+  it('names the memory file and commit the latest attempt read first', async () => {
+    const { MemoryUsed } = await import('./TaskBuildPanel');
+    const withMemory = build('executing');
+    (withMemory.attempts[0] as { repositoryMemory?: unknown }).repositoryMemory = [{ repository: 'acme/web', file: 'AGENTS.md', version: 'abcdef1234567' }];
+    const html = renderToStaticMarkup(<MemoryUsed orchestration={withMemory} />);
+    expect(html).toContain('Project memory read first');
+    expect(html).toContain('acme/web');
+    expect(html).toContain('abcdef1');
+    expect(renderToStaticMarkup(<MemoryUsed orchestration={build('executing')} />)).toBe('');
+  });
+});

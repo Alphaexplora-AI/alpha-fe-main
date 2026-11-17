@@ -1884,6 +1884,12 @@ export const ChatView: React.FC<{ unifiedNavigation?: boolean }> = ({ unifiedNav
           <header className="flex h-14 shrink-0 items-center gap-3 px-5 lg:px-7">
             <FolderOpen className="h-4 w-4 shrink-0 text-content-secondary" aria-hidden="true" />
             <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-content">{activeThread.title}</h1>
+            {/* People can see when project memory shapes answers; it is listed on the project's Details page. */}
+            {!isClient && project && (
+              <span className="hidden shrink-0 text-[11px] text-content-muted lg:inline" title="Each repository's AGENTS.md. See the project's Details page.">
+                Agents read this project's memory first
+              </span>
+            )}
             {!isClient && <>
               <Button variant="ghost" size="icon" aria-label={summaryOpen ? 'Hide project summary' : 'Show project summary'} aria-expanded={summaryOpen} aria-controls={projectSummaryId} title="Project summary" onClick={() => setSummaryOpen(value => !value)} className={`rounded-lg ${summaryOpen ? 'bg-surface-high text-content' : ''}`}><ListChecks className="h-4 w-4" /></Button>
               <span className="h-6 w-px bg-divider" />
