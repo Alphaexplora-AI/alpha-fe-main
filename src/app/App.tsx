@@ -18,6 +18,7 @@ import { AgentRunModal } from '@/features/runs/AgentRunModal';
 import { PrototypeGuide } from '@/features/onboarding/PrototypeGuide';
 import { ToastRegion } from '@/shared/components/ToastRegion';
 import { NotificationPopover } from '@/features/inbox/NotificationPopover';
+import { RunningIndicator } from '@/features/activity/RunningIndicator';
 import { ChatHistory } from '@/features/chat/ChatHistory';
 import { ChatView } from '@/features/chat/ChatView';
 import { IssuesView } from '@/features/issues/IssuesView';
@@ -339,7 +340,7 @@ export const App: React.FC = () => {
             sidebar's workspace switcher uses the same row. Pixel units on
             purpose: the root font is 15px, so rem-based sizes would drift. */}
         <div className={`pointer-events-none absolute inset-x-0 top-0 z-30 pt-[6px] pl-5 ${nativeWindowControls ? 'pr-[9.5rem]' : 'pr-5'}`}>
-          <WorkspaceToolbar draggable={nativeWindowControls} actions={<NotificationPopover />}>
+          <WorkspaceToolbar draggable={nativeWindowControls} actions={<>{isDesktop && <RunningIndicator />}<NotificationPopover /></>}>
             {/* Scrollable Open Tabs List */}
             <WorkspaceTabStrip label="Open workspace tabs">
             {tabs.map((tab) => {

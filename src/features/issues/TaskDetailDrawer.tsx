@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { Archive, ArrowUpRight, Bot, ExternalLink, GitBranch, GitPullRequest, MessageSquare, Plus, Send, Sparkles, X } from 'lucide-react';
+import { Archive, Bot, ChevronDown, ExternalLink, GitBranch, GitPullRequest, MessageSquare, Plus, Send, Sparkles, X } from 'lucide-react';
 import { useApp, useTabSessionState } from '@/app/AppContext';
 import type { BoardAgentChange, Issue, IssuePriority, IssueStatus } from '@/shared/types';
 import { AgentChangesList } from '@/features/board-agent/AgentChangesList';
@@ -11,8 +11,9 @@ import { FeatureSpecPanel } from '@/features/board-build/FeatureSpecPanel';
 import { TaskBuildPanel, type SpecState } from '@/features/board-build/TaskBuildPanel';
 import { useFeatureSpec } from '@/features/board-build/useTaskBuild';
 import { isDesktop } from '@/shared/desktop';
-import { TASK_PRIORITIES, TASK_STATUSES, nextStepFor, type NextStepAction } from './taskFlow';
+import { TASK_PRIORITIES, TASK_STATUSES, nextStepFor, statusLabel, taskStage, visibleLabels, type NextStepAction } from './taskFlow';
 import { DatePicker } from '@/shared/components/ui/date-picker';
+import { githubLink } from '@/shared/lib/githubLink';
 
 interface TaskDetailDrawerProps {
   onOpenTask?: (id: string, projectId: string) => void;
@@ -45,6 +46,12 @@ type DrawerTab = 'overview' | 'build';
 const formatDate = (iso: string) => {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+
+/** A calendar day stored as YYYY-MM-DD, read in local time so it never shifts by a day. */
+const formatDay = (day: string) => {
+  const match = /^(d{4})-(d{2})-(d{2})$/.exec(day);
+  return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : formatDate(day);
 };
 
 const formatTime = (iso: string) => {
@@ -114,20 +121,44 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const dependencies = issue.dependsOnIssueIds ?? [];
   const spec = useFeatureSpec(issue, isDesktop);
   const specState: SpecState = !spec.record ? 'none' : spec.record.status === 'approved' ? (spec.record.stale ? 'stale' : 'approved') : 'draft';
-  // A task with a build under way sits in Building on the board; the track says the same.
-  const shownStatus = buildActive && issue.status !== 'done' ? 'agent_running' : issue.status;
+  // The same stage the list and the board use, so all three say one thing.
+  const stage = taskStage(issue, buildsHere ? build?.status : undefined, buildsHere && build?.workspaceLost);
+  const shownStatus = stage.column;
+  const labels = visibleLabels(issue.labels);
+  const prLink = githubLink(issue.prUrl);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const dependencyTasks = projectTasks.filter(task => dependencies.includes(task.id));
+  const scheduleSummary = [
+    issue.dueDate && `Due ${formatDay(issue.dueDate)}`,
+    (issue.plannedStartDate || issue.plannedEndDate) && `Planned ${[issue.plannedStartDate, issue.plannedEndDate].map(day => (day ? formatDay(day) : '…')).join(' – ')}`,
+    dependencyTasks.length > 0 && `Waits for ${dependencyTasks.map(task => task.identifier).join(', ')}`
+  ].filter(Boolean).join(' · ') || 'Not scheduled';
+  const setDate = (field: 'dueDate' | 'plannedStartDate' | 'plannedEndDate', value: string) => {
+    const patch: Partial<Issue> = {};
+    patch[field] = value;
+    updateIssue(issue.id, patch);
+  };
+  const autoOpenedFor = useRef<string | null>(null);
+  // A build waiting on a person opens on the Build tab, where the decision is, once per task.
+  useEffect(() => {
+    if (!buildsHere || !stage.needsYou || autoOpenedFor.current === issue.id) return;
+    autoOpenedFor.current = issue.id;
+    setTab('build');
+  }, [buildsHere, stage.needsYou, issue.id, setTab]);
   const shownBranch = buildActive ? build?.branchName : issue.branchName;
   const done = issue.subtasks.filter(subtask => subtask.completed).length;
   // Off the desktop the step comes from the task's status alone: there is no build data to act on.
   const step = nextStepFor({
     status: issue.status,
     buildStatus: buildsHere ? build?.status : undefined,
+    buildLost: buildsHere && build?.workspaceLost,
     blocker: buildsHere ? build?.blocker : undefined,
     fresh: buildsHere ? build?.fresh : undefined,
     requestStatus: buildsHere ? build?.request?.status : undefined,
     buildActive: buildsHere && buildActive,
     canManageIssues,
     canStartBuild: buildsHere && canStartBuild,
+    prUrl: prLink,
     canHandOffToChat: Boolean(onHandOff),
     hasBuildChat: Boolean(onOpenBuildChat)
   });
@@ -158,6 +189,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       case 'move_review': onRequestStatus(issue, 'review'); break;
       case 'mark_done': onRequestStatus(issue, 'done'); break;
       case 'reopen': onRequestStatus(issue, 'todo'); break;
+      case 'open_pr': if (prLink) window.open(prLink, '_blank', 'noopener,noreferrer'); break;
       case 'request_changes':
         onRequestStatus(issue, 'in_progress');
         document.getElementById(`${ids}-comment`)?.focus();
@@ -232,8 +264,20 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         />
 
 
+        {/* On the Build tab the panel below is the step, so the card shrinks to one line and keeps only what Build lacks. */}
+        {tab === 'build' && (
+          <div role="status" className="mb-5 flex min-h-9 items-center gap-2.5 rounded-lg border border-divider bg-surface px-3 py-2">
+            <Sparkles aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-link" />
+            <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-content">{step.title}</p>
+            {[step.primary, step.secondary].filter(action => action && action.action !== 'open_build' && action.action !== 'plan_build').map(action => (
+              <button key={action!.action} type="button" onClick={() => run(action!.action)} className="shrink-0 text-[12.5px] font-medium text-link hover:text-link-hover">
+                {action!.label}
+              </button>
+            ))}
+          </div>
+        )}
         {/* On the web an advice-only step would point at a Build tab that is not there. */}
-        {(buildsHere || step.primary || step.secondary) && <div role="status" className="mb-5 flex gap-3 rounded-lg border border-divider bg-surface p-3.5">
+        {tab === 'overview' && (buildsHere || step.primary || step.secondary) && <div role="status" className="mb-5 flex gap-3 rounded-lg border border-divider bg-surface p-3.5">
           <span aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-selected text-link">
             <Sparkles className="h-4 w-4" />
           </span>
@@ -260,7 +304,12 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
         <dl className="mb-5 grid grid-cols-[110px_minmax(0,1fr)] border-t border-divider text-[12.5px]">
           <dt className="border-b border-divider py-2 text-content-muted">Status</dt>
-          <dd className="border-b border-divider py-1.5">
+          {stage.buildOwned ? (
+            <dd className="flex items-baseline gap-2 border-b border-divider py-2 text-content-secondary">
+              {statusLabel(shownStatus)}
+              <span className="text-[11.25px] text-content-muted">Follows the build</span>
+            </dd>
+          ) : <dd className="border-b border-divider py-1.5">
             <label htmlFor={`${ids}-status`} className="sr-only">Status</label>
             <select
               id={`${ids}-status`}
@@ -271,7 +320,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             >
               {TASK_STATUSES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
             </select>
-          </dd>
+          </dd>}
           <dt className="border-b border-divider py-2 text-content-muted">Priority</dt>
           <dd className="border-b border-divider py-1.5">
             <label htmlFor={`${ids}-priority`} className="sr-only">Priority</label>
@@ -294,9 +343,69 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 : <button type="button" onClick={() => updateIssue(issue.id, { assignedHuman: identity.login })} className="text-[11.25px] font-medium text-link hover:text-link-hover">Assign to me</button>
             )}
           </dd>
-          {issue.labels.length > 0 && <>
+          <dt className="border-b border-divider py-2 text-content-muted">Schedule</dt>
+          <dd className="border-b border-divider py-1.5">
+            <button
+              type="button"
+              aria-expanded={scheduleOpen}
+              aria-controls={`${ids}-schedule`}
+              onClick={() => setScheduleOpen(open => !open)}
+              className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-md pr-1 text-left text-content-secondary hover:bg-surface-high focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            >
+              <span className="truncate">{scheduleSummary}</span>
+              <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 text-content-muted transition-transform ${scheduleOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {scheduleOpen && (
+              <div id={`${ids}-schedule`} className="mt-2 space-y-3 pb-1.5">
+                <div className="grid grid-cols-3 gap-2">
+                  {([['Due', 'dueDate'], ['Planned start', 'plannedStartDate'], ['Planned finish', 'plannedEndDate']] as const).map(([label, field]) => (
+                    <label key={field} className="space-y-1 text-[11.5px] text-content-muted">
+                      <span className="block">{label}</span>
+                      <DatePicker
+                        value={issue[field] ?? ''}
+                        disabled={!canManageIssues}
+                        onChange={value => setDate(field, value)}
+                        buttonClassName="h-8 w-full justify-start border-control bg-well px-2 text-[12px] text-content-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                        className="w-full"
+                      />
+                    </label>
+                  ))}
+                </div>
+                <div>
+                  <p className="mb-1 text-[11.5px] text-content-muted">Depends on</p>
+                  {dependencyTasks.length > 0 && (
+                    <ul className="mb-1.5 space-y-0.5">
+                      {dependencyTasks.map(task => (
+                        <li key={task.id} className="flex min-h-7 items-center gap-2 text-[12px]">
+                          <span className="shrink-0 font-mono text-[10.5px] text-content-muted">{task.identifier}</span>
+                          <span className="min-w-0 flex-1 truncate text-content-secondary">{task.title}</span>
+                          {canManageIssues && (
+                            <button type="button" aria-label={`Remove dependency on ${task.identifier}`} onClick={() => updateIssue(issue.id, { dependsOnIssueIds: dependencies.filter(id => id !== task.id) })} className="rounded p-1 text-content-muted hover:bg-surface-high hover:text-content">
+                              <X aria-hidden="true" className="h-3 w-3" />
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {canManageIssues ? (
+                    <select
+                      aria-label="Add a task this one depends on"
+                      value=""
+                      onChange={event => { if (event.target.value) updateIssue(issue.id, { dependsOnIssueIds: [...dependencies, event.target.value] }); }}
+                      className="h-8 w-full rounded-md border border-control bg-well px-2 text-[12px] text-content-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                    >
+                      <option value="">{projectTasks.length ? 'Add a task this one waits for…' : 'No other tasks in this project yet'}</option>
+                      {projectTasks.filter(task => !dependencies.includes(task.id)).map(task => <option key={task.id} value={task.id}>{task.identifier} · {task.title}</option>)}
+                    </select>
+                  ) : dependencyTasks.length === 0 && <p className="text-[12px] text-content-muted">None</p>}
+                </div>
+              </div>
+            )}
+          </dd>
+          {labels.length > 0 && <>
             <dt className="border-b border-divider py-2 text-content-muted">Labels</dt>
-            <dd className="flex flex-wrap gap-1 border-b border-divider py-2">{issue.labels.map(label => <span key={label} className="rounded border border-secondary-border bg-secondary-subtle px-1.5 text-[11px] text-secondary">{label}</span>)}</dd>
+            <dd className="flex flex-wrap gap-1 border-b border-divider py-2">{labels.map(label => <span key={label} className="rounded border border-secondary-border bg-secondary-subtle px-1.5 text-[11px] text-secondary">{label}</span>)}</dd>
           </>}
           {shownBranch && <>
             <dt className="border-b border-divider py-2 text-content-muted">Branch</dt>
@@ -306,10 +415,10 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               <CopyButton value={shownBranch} label={`branch ${shownBranch}`} />
             </dd>
           </>}
-          {issue.prUrl && <>
+          {prLink && <>
             <dt className="border-b border-divider py-2 text-content-muted">Pull request</dt>
             <dd className="border-b border-divider py-2">
-              <a href={issue.prUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-medium text-link hover:text-link-hover">
+              <a href={prLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 font-medium text-link hover:text-link-hover">
                 <GitPullRequest aria-hidden="true" className="h-3.5 w-3.5" />
                 Open on GitHub
                 <ExternalLink aria-hidden="true" className="h-3 w-3" />
@@ -366,77 +475,6 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   )}
                 </section>
               )}
-              <section aria-labelledby={`${ids}-schedule`} className="border-b border-divider pb-4">
-                <div className="mb-2 flex items-baseline justify-between gap-3">
-                  <h3 id={`${ids}-schedule`} className="text-[13px] font-semibold text-content-secondary">Dates</h3>
-                  <span className="text-[11px] text-content-muted">Due dates and plan dates are separate</span>
-                </div>
-                <label htmlFor={`${ids}-due-date`} className="mb-3 block max-w-xs space-y-1 text-[11.5px] text-content-muted">
-                  <span className="block font-medium text-content-secondary">Due date</span>
-                  <DatePicker
-                    id={`${ids}-due-date`}
-                    value={issue.dueDate ?? ''}
-                    disabled={!canManageIssues}
-                    onChange={value => updateIssue(issue.id, { dueDate: value })}
-                    buttonClassName="h-8 w-full justify-start border-control bg-well px-2 text-[12px] text-content-secondary disabled:cursor-not-allowed disabled:opacity-60"
-                    className="w-full"
-                  />
-                  <span className="block text-[10.5px]">Expected finish for this task.</span>
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="space-y-1 text-[11.5px] text-content-muted">
-                    <span className="block">Planned start</span>
-                    <DatePicker
-                      value={issue.plannedStartDate ?? ''}
-                      disabled={!canManageIssues}
-                      onChange={value => updateIssue(issue.id, { plannedStartDate: value })}
-                      buttonClassName="h-8 w-full justify-start border-control bg-well px-2 text-[12px] text-content-secondary disabled:cursor-not-allowed disabled:opacity-60"
-                      className="w-full"
-                    />
-                  </label>
-                  <label className="space-y-1 text-[11.5px] text-content-muted">
-                    <span className="block">Planned finish</span>
-                    <DatePicker
-                      value={issue.plannedEndDate ?? ''}
-                      disabled={!canManageIssues}
-                      onChange={value => updateIssue(issue.id, { plannedEndDate: value })}
-                      buttonClassName="h-8 w-full justify-start border-control bg-well px-2 text-[12px] text-content-secondary disabled:cursor-not-allowed disabled:opacity-60"
-                      className="w-full"
-                    />
-                  </label>
-                </div>
-                <fieldset className="mt-3">
-                  <legend className="text-[11.5px] font-medium text-content-secondary">Depends on</legend>
-                  <p className="mb-1.5 text-[11px] text-content-muted">Select tasks that need to finish before this task starts.</p>
-                  {projectTasks.length === 0 ? (
-                    <p className="rounded-md border border-dashed border-divider px-2.5 py-2 text-[11px] text-content-muted">No other tasks in this project yet.</p>
-                  ) : (
-                    <div className="max-h-36 overflow-y-auto rounded-md border border-divider bg-well p-1">
-                      {projectTasks.map(task => {
-                        const checked = dependencies.includes(task.id);
-                        return (
-                          <label key={task.id} className={`flex min-h-7 items-center gap-2 rounded px-2 text-[11.5px] ${canManageIssues ? 'cursor-pointer hover:bg-surface-high' : 'cursor-default opacity-60'}`}>
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              disabled={!canManageIssues}
-                              onChange={() => {
-                                const next = checked
-                                  ? dependencies.filter(id => id !== task.id)
-                                  : [...dependencies, task.id];
-                                updateIssue(issue.id, { dependsOnIssueIds: next });
-                              }}
-                              className="h-3.5 w-3.5 accent-brand-500"
-                            />
-                            <span className="shrink-0 font-mono text-[10px] text-content-muted">{task.identifier}</span>
-                            <span className="truncate text-content-secondary">{task.title}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                </fieldset>
-              </section>
 
               <div>
                 <label htmlFor={`${ids}-description`} className="sr-only">Description</label>
@@ -518,18 +556,12 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           {tab === 'build' && (
             <div className="space-y-4">
               <TaskBuildPanel issue={issue} build={build} canStartBuild={canStartBuild} specState={specState} onPlanBuild={onPlanBuild} onBuildChanged={onBuildChanged} onOpenTask={onOpenTask} />
-              {/* A build started from chat before the board took over still opens in its chat while the Chat tab is on. */}
-              {build && onOpenBuildChat && (
-                <button type="button" onClick={() => onOpenBuildChat(issue)} className="inline-flex items-center gap-1 text-[12.5px] font-medium text-link hover:text-link-hover">
-                  Open in chat <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
-                </button>
-              )}
             </div>
           )}
         </div>
       </div>
 
-      <form
+      {tab === 'overview' && <form
         onSubmit={event => { event.preventDefault(); postComment(); }}
         className="shrink-0 border-t border-divider p-3"
       >
@@ -556,7 +588,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             </button>
           </div>
         </div>
-      </form>
+      </form>}
 
       <Modal
         isOpen={removeDialogOpen}

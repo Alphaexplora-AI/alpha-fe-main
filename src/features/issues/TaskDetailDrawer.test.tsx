@@ -91,6 +91,35 @@ describe('Task details', () => {
     expect(html).toContain('Request revisions');
   });
 
+  it('shows a task held by a finished build as In review, read-only, without Alpha labels', () => {
+    desktopApp = true;
+    const html = renderToStaticMarkup(<TaskDetailDrawer
+      issue={{ ...issue('todo'), labels: ['alpha:chat-build', 'frontend'] }}
+      sessionPrefix="issues"
+      build={{ issueId: 'i1', projectId: 'p1', runId: 'run-1', status: 'awaiting_approval', updatedAt: '' }}
+      buildActive
+      canStartBuild={false}
+      onClose={() => undefined}
+      onRemove={() => undefined}
+      onRequestStatus={() => undefined}
+      onPlanBuild={() => undefined}
+    />);
+    expect(html).toContain('Ready for your review');
+    expect(html).toContain('Follows the build');
+    expect(html).toMatch(/In review<span[^>]*>Follows the build/);
+    expect(html).not.toMatch(/<select[^>]*id="[^"]*-status"/);
+    expect(html).toContain('frontend');
+    expect(html).not.toContain('alpha:chat-build');
+  });
+
+  it('folds dates and dependencies into one Schedule row', () => {
+    const html = render('todo', false);
+    expect(html).toContain('Schedule');
+    expect(html).toContain('Not scheduled');
+    expect(html).not.toContain('Planned start');
+    expect(html).not.toContain('Select tasks that need to finish');
+  });
+
   it('keeps status-driven next steps on the hosted web app', () => {
     const html = render('review', false, true, { web: true });
     expect(html).toContain('Mark done');

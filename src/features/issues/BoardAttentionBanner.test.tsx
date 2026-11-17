@@ -35,6 +35,11 @@ describe('boardAttention', () => {
     expect(items).toEqual([{ kind: 'stale_in_progress', issue: expect.objectContaining({ id: 'mon-104' }) }]);
   });
 
+  it('asks for a stop, not a review, when the waiting build lost its working copy', () => {
+    const [item] = boardAttention([issue('tes2-106', 'todo')], { 'tes2-106': { ...build('tes2-106', 'awaiting_approval', 23 * DAY), workspaceLost: true } }, NOW);
+    expect(item).toMatchObject({ kind: 'stuck_build', decision: 'someone to stop it, because its working copy is gone' });
+  });
+
   it('labels waits in days or hours', () => {
     expect(waitedLabel(14 * DAY)).toBe('14 days');
     expect(waitedLabel(DAY + 1)).toBe('1 day');

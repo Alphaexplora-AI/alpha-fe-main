@@ -17,7 +17,9 @@ import { isEpic } from '@/features/board-build/epic';
 import { BoardAlphaPanel } from '@/features/board-build/BoardAlphaPanel';
 import { TaskDetailDrawer } from './TaskDetailDrawer';
 import { CalendarView } from './CalendarView';
-import { initialsOf, taskHandoffMessage } from './taskFlow';
+import { initialsOf, taskHandoffMessage, taskStage } from './taskFlow';
+import { ArchiveSelectedBar, SelectionCheckbox } from './ArchiveSelectedBar';
+import { selectionState, splitForArchive, withTasks } from './taskSelection';
 import {
   Kanban,
   List,
@@ -205,7 +207,7 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
     canRunBuilds && buildStatusFresh && issue.status !== 'done' && !hasActiveBuild(issue) &&
     !issueBuilds[issue.id]?.blocker && !['waiting', 'planning'].includes(issueBuilds[issue.id]?.request?.status ?? '');
   const boardColumnFor = (issue: Issue): IssueStatus =>
-    issue.status !== 'done' && hasActiveBuild(issue) ? 'agent_running' : issue.status;
+    taskStage(issue, issueBuilds[issue.id]?.status, issueBuilds[issue.id]?.workspaceLost).column;
 
   /** Assigned to the person looking at the board. */
   const isMine = (issue: Issue) => Boolean(identity && issue.assignedHuman && (
@@ -221,6 +223,8 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
 
   // Collapsed status sections state (Jira style)
   const [collapsedSections, setCollapsedSections] = useTabSessionState<Record<string, boolean>>(`${sessionPrefix}.collapsedSections`, {});
+  // Tasks ticked in the list, for archiving several at once.
+  const [checkedTaskIds, setCheckedTaskIds] = useState<Set<string>>(() => new Set());
 
   // Slide-over drawer state
   const [selectedIssueId, setSelectedIssueId] = useTabSessionState<string | null>(`${sessionPrefix}.selectedIssue`, null);
@@ -357,11 +361,6 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
   };
 
   // Personal filters must not hide active work elsewhere in this project.
-  const runningAgentsCount = useMemo(
-    () => issues.filter(issue => (selectedProject === 'all' || issue.projectId === selectedProject)
-      && ['executing', 'validating', 'publishing'].includes(issueBuilds[issue.id]?.status ?? '')).length,
-    [issues, selectedProject, issueBuilds]
-  );
 
   const clearDragState = () => {
     setDraggedIssueId(null);
@@ -390,6 +389,8 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
    */
   const requestIssueStatusChange = (issue: Issue, nextStatus: IssueStatus) => {
     if (issue.status === nextStatus) return;
+    // A build holds this card: its column follows the build, so a hand move would not stick.
+    if (hasActiveBuild(issue)) return;
 
     if (nextStatus === 'agent_running') {
       if (canRunBuilds && !hasActiveBuild(issue) && issue.status !== 'done') setPendingBuildIssueId(issue.id);
@@ -513,6 +514,13 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
   const removeTask = (issue: Issue) => {
     archiveIssue(issue.id);
     setSelectedIssueId(null);
+  };
+
+  /** Archive ticked tasks one by one through the same route as a single archive. */
+  const archiveChecked = (tasks: Issue[]) => {
+    for (const task of tasks) archiveIssue(task.id);
+    if (tasks.some(task => task.id === selectedIssueId)) setSelectedIssueId(null);
+    setCheckedTaskIds(prev => withTasks(prev, tasks.map(task => task.id), false));
   };
 
   // Developers own implementation hand-offs; PMs review the resulting work.
@@ -643,17 +651,8 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
                 <span>Alpha</span>
               </button>
             )}
-            {/* Active work remains visible as plain status text. */}
-            <div className="flex items-center gap-1.5 px-1 py-1.5 text-xs text-content-muted">
-              {runningAgentsCount > 0 ? (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                  <span className="text-status-info font-medium">{runningAgentsCount} builds running</span>
-                </>
-              ) : (
-                <span>{buildStatusFresh ? 'No agents running' : 'Build status unavailable'}</span>
-              )}
-            </div>
+            {/* What is running is in the top bar on every page; this only flags stale build data. */}
+            {!buildStatusFresh && <span className="px-1 py-1.5 text-xs text-content-muted">Build status unavailable</span>}
 
             {/* Filter Toggle Button */}
             <button
@@ -1045,8 +1044,12 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
         ) : (
           /* Jira-like Grouped Status List View (Matching Exact Screenshot) */
           <div className="flex-1 space-y-2.5 overflow-y-auto p-4 sm:px-5 sm:py-4">
+            {canManageIssues && (() => {
+              const checked = splitForArchive(filteredIssues, checkedTaskIds, hasActiveBuild);
+              return <ArchiveSelectedBar archive={checked.archive} held={checked.held} onArchive={archiveChecked} onClear={() => setCheckedTaskIds(new Set())} />;
+            })()}
             {statusGroups.map(group => {
-              const groupIssues = filteredIssues.filter(i => group.statusMatch(i.status));
+              const groupIssues = filteredIssues.filter(i => group.statusMatch(boardColumnFor(i)));
               const isCollapsed = collapsedSections[group.id] ?? false;
 
               return (
@@ -1056,14 +1059,13 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
                     onClick={() => toggleSection(group.id)}
                     className="flex items-center gap-3 px-3 py-2 rounded-lg bg-surface-raised hover:bg-surface-high border border-divider cursor-pointer select-none transition-colors"
                   >
-                    {/* Checkbox */}
-                    <input
-                      type="checkbox"
-                      checked={false}
-                      onChange={() => {}}
-                      onClick={(e) => e.stopPropagation()}
-                      className="rounded bg-transparent border-control text-link focus:ring-0 cursor-pointer"
-                    />
+                    {canManageIssues && (
+                      <SelectionCheckbox
+                        state={groupIssues.length ? selectionState(groupIssues.map(item => item.id), checkedTaskIds) : 'none'}
+                        label={`Select every ${group.label} task`}
+                        onChange={on => setCheckedTaskIds(prev => withTasks(prev, groupIssues.map(item => item.id), on))}
+                      />
+                    )}
 
                     {/* Collapse Chevron */}
                     <button className="text-content-secondary hover:text-content p-0.5">
@@ -1109,6 +1111,13 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
                             >
                               {/* Left: Checkbox, Priority, Key, Title, Subtasks Ring */}
                               <div className="flex items-center gap-3 min-w-0 flex-1">
+                                {canManageIssues && (
+                                  <SelectionCheckbox
+                                    state={checkedTaskIds.has(issue.id) ? 'all' : 'none'}
+                                    label={`Select ${issue.identifier}`}
+                                    onChange={on => setCheckedTaskIds(prev => withTasks(prev, [issue.id], on))}
+                                  />
+                                )}
                                 <div className="text-content-muted flex-shrink-0">
                                   {getPriorityIcon(issue.priority)}
                                 </div>

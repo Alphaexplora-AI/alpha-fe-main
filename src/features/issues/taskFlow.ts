@@ -1,4 +1,5 @@
 import type { Issue, IssuePriority, IssueStatus } from '@/shared/types';
+import { ACTIVE_BUILD_STATUSES } from './BuildChip';
 
 /**
  * The board's lifecycle, in the order a task moves through it.
@@ -37,6 +38,69 @@ function withoutTrailingPunctuation(value: string, punctuation: string): string 
 
 /** Build states in which the build, not the person, is what the task waits on. */
 export const BUILD_DECISION_STATUSES = new Set(['awaiting_plan_approval', 'awaiting_approval', 'blocked', 'recovery_required']);
+
+/** The backend's stop reason for a build whose working copy, and its unpublished commits, are gone. */
+export const BUILD_WORKSPACE_LOST_PREFIX = 'Build working copy lost:';
+
+/** The plain sentence inside a lost-working-copy reason or error, or undefined for anything else. */
+export function lostWorkingCopyText(message: string | undefined): string | undefined {
+  const at = message?.indexOf(BUILD_WORKSPACE_LOST_PREFIX) ?? -1;
+  return at < 0 ? undefined : message!.slice(at + BUILD_WORKSPACE_LOST_PREFIX.length).trim();
+}
+
+export interface TaskStage {
+  /** The column the task sits in on the list, the board, the calendar and the details panel. */
+  column: IssueStatus;
+  /** The build is waiting on a person: a plan to approve, work to review, or a recovery to choose. */
+  needsYou: boolean;
+  /** A build holds the task, so its status follows the build and cannot be moved by hand. */
+  buildOwned: boolean;
+}
+
+/**
+ * Where a task is, worked out once for every view.
+ *
+ * A task's stored status and its build's status are separate values. Each view
+ * used to pick its own winner, so one task read Todo in the list, Building on the
+ * board and "Ready for your review" in its panel. Every view now asks this.
+ */
+export function taskStage(issue: Pick<Issue, 'status'>, buildStatus?: string, workspaceLost = false): TaskStage {
+  const buildOwned = ACTIVE_BUILD_STATUSES.has(buildStatus ?? '');
+  if (issue.status === 'done' || !buildOwned) return { column: issue.status, needsYou: false, buildOwned };
+  // Nothing left to review: the build can only be stopped, so it is not "In review".
+  if (workspaceLost) return { column: 'agent_running', needsYou: true, buildOwned };
+  return { ...buildStage(buildStatus as string), buildOwned };
+}
+
+/**
+ * The column and attention flag for a task whose build is still active.
+ *
+ * Called only with a status from ACTIVE_BUILD_STATUSES:
+ *   planning, executing, validating, publishing, cancelling  (agents are working)
+ *   awaiting_plan_approval, paused, blocked, recovery_required  (waiting on a person, not finished)
+ *   awaiting_approval  (finished, waiting for final review)
+ */
+function buildStage(buildStatus: string): Omit<TaskStage, 'buildOwned'> {
+  switch (buildStatus) {
+    // The work is done and only the person's approval is missing: that is a review.
+    case 'awaiting_approval':
+      return { column: 'review', needsYou: true };
+    // Unfinished work stopped on a person: still Building, but flagged.
+    case 'awaiting_plan_approval':
+    case 'paused':
+    case 'blocked':
+    case 'recovery_required':
+      return { column: 'agent_running', needsYou: true };
+    // Agents are working, or the build is stopping by itself.
+    default:
+      return { column: 'agent_running', needsYou: false };
+  }
+}
+
+/** Labels people chose. Labels starting with `alpha:` are Alpha's own bookkeeping. */
+export function visibleLabels(labels: readonly string[]): string[] {
+  return labels.filter(label => !label.startsWith('alpha:'));
+}
 
 /**
  * Subtasks suggested from what the author already wrote.
@@ -100,7 +164,8 @@ export type NextStepAction =
   | 'move_review'
   | 'mark_done'
   | 'request_changes'
-  | 'reopen';
+  | 'reopen'
+  | 'open_pr';
 
 export interface NextStep {
   title: string;
@@ -116,9 +181,13 @@ export interface NextStepInput {
   status: IssueStatus;
   /** Latest Orchestrator build status for the task, if any. */
   buildStatus?: string;
+  /** The build's working copy and its unpublished work are gone: it can only be stopped. */
+  buildLost?: boolean;
   buildActive: boolean;
   canManageIssues: boolean;
   canStartBuild: boolean;
+  /** The task's pull request, once a build has opened one. */
+  prUrl?: string;
   /** The role can use project chat, so a task can be handed to it. */
   canHandOffToChat: boolean;
   /** A chat thread already exists for this task's build. */
@@ -138,6 +207,9 @@ export function nextStepFor(input: NextStepInput): NextStep {
   if (['waiting', 'planning'].includes(input.requestStatus ?? '') && !input.buildActive) return { title: input.requestStatus === 'waiting' ? 'Plan queued' : 'Preparing plan', text: 'Code changes still require plan approval.', primary: { label: 'Open task build', action: 'open_build' } };
   // Decisions happen on the task. The task's chat thread is a secondary way in while the Chat tab is on.
   const chat = input.hasBuildChat ? { label: 'Open in chat', action: 'open_chat' as const } : undefined;
+  if (input.buildActive && input.buildLost) {
+    return { title: 'This build can no longer be approved', text: 'Its working copy was deleted with the project folder, so the reviewed changes cannot be published. Stop it in the Build tab, then plan a new build.', primary: { label: 'Open the build', action: 'open_build' }, secondary: chat };
+  }
   if (input.buildActive) {
     switch (input.buildStatus) {
       case 'awaiting_plan_approval':
@@ -165,6 +237,15 @@ export function nextStepFor(input: NextStepInput): NextStep {
         secondary: input.canManageIssues ? { label: 'Reopen', action: 'reopen' } : undefined
       };
     case 'review':
+      // An approved build already opened a pull request: the remaining step is merging it, not a second review.
+      if (input.prUrl) {
+        return {
+          title: 'Pull request open',
+          text: 'Merge it on GitHub, then mark the task done.',
+          primary: { label: 'Open pull request', action: 'open_pr' },
+          secondary: input.canManageIssues ? { label: 'Mark done', action: 'mark_done' } : undefined
+        };
+      }
       if (handoff && !input.canManageIssues) {
         return { title: 'In review', text: 'Waiting for a reviewer. If changes come back, pick it up in chat.', primary: handoff };
       }

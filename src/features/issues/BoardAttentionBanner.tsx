@@ -28,7 +28,8 @@ export function boardAttention(issues: Issue[], builds: Record<string, IssueBuil
   for (const issue of issues) {
     const build = builds[issue.id];
     if (!build) continue;
-    const decision = DECISIONS[build.status];
+    // A build whose working copy is gone cannot be reviewed any more; it can only be stopped.
+    const decision = build.workspaceLost && DECISIONS[build.status] ? 'someone to stop it, because its working copy is gone' : DECISIONS[build.status];
     const updated = Date.parse(build.updatedAt);
     if (decision && Number.isFinite(updated) && now - updated >= STUCK_AFTER_MS) {
       items.push({ kind: 'stuck_build', issue, decision, waitingMs: now - updated });
