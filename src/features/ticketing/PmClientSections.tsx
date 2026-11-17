@@ -283,6 +283,10 @@ export async function loadClientProjects(api: ProjectApi, client: PmClientSummar
   }));
 }
 
+/** Where the client preview stands: shared for review, a link set but not shared, or none yet. */
+export const previewState = (published: boolean, hasLink: boolean) => published ? 'Shared with the client for review'
+  : hasLink ? 'Preview link ready · not shared with the client yet' : 'No preview yet';
+
 /** Only a web address can be opened from here; anything else is shown as not shared. */
 const safeUrl = (value: string | null) => {
   if (!value) return null;
@@ -315,7 +319,7 @@ function ClientProjectCard({ client, project, canOpen, onOpenProject }: {
       <FolderKanban className="mt-0.5 h-4 w-4 shrink-0 text-content-muted" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-[13px] font-semibold text-content" title={project.name}>{project.name}</h3>
-        <p className="text-[11.5px] text-content-muted">{project.previewPublished ? 'Preview shared with the client' : 'No preview shared yet'}</p>
+        <p className="text-[11.5px] text-content-muted">{previewState(project.previewPublished, Boolean(url))}</p>
       </div>
       {/* Only link to a project this PM's project list has; never a dead link. */}
       {canOpen && <button type="button" onClick={() => onOpenProject(project.projectId)}
@@ -325,7 +329,7 @@ function ClientProjectCard({ client, project, canOpen, onOpenProject }: {
     </div>
     {url && <a href={url} target="_blank" rel="noreferrer noopener"
       className="mx-4 mb-2 inline-flex items-center gap-1 text-xs font-medium text-link hover:text-link-hover">
-      Open client preview <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+      Open preview <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
     </a>}
     <div className="border-t border-divider px-4 py-3">
       <h4 className="mb-2 text-[11.5px] font-medium text-content-muted">Latest feedback on this project</h4>
