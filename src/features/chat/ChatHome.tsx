@@ -195,7 +195,8 @@ export function ChatHome({
   return <div className="flex h-full min-h-0 flex-col overflow-y-auto">
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center px-6 py-10">
       <div className="mb-7 flex items-center justify-center gap-3">
-        <img src={alphaMarkUrl} alt="" aria-hidden="true" className="h-11 w-11 rounded-xl bg-action object-contain" />
+        {/* The mark is white on transparent: black on light themes, white on dark ones. */}
+        <img src={alphaMarkUrl} alt="" aria-hidden="true" className="h-11 w-11 object-contain invert dark:invert-0" />
         <h1 className="text-3xl font-semibold tracking-tight text-content">{name ? 'Ready to code, ' + name + '?' : 'Ready to code?'}</h1>
       </div>
 
