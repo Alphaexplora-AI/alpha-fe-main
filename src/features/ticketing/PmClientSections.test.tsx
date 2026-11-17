@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 vi.hoisted(() => { (globalThis as { window?: unknown }).window ??= globalThis; });
 
-import { ClientConversations, ClientOverview, ClientProjects, loadClientProjects, loadClientRequests } from './PmClientSections';
+import { ClientConversations, ClientOverview, ClientProjects, ClientProposals, loadClientProjects, loadClientRequests } from './PmClientSections';
 import type { PmClientConversation, PmClientSummary, PmTicketQueueItem, PmTicketQueuePage } from './pmApi';
 
 const client: PmClientSummary = {
@@ -101,5 +101,18 @@ describe('Client projects', () => {
       projects={[{ projectId: 'p1', name: 'Resort Website', previewPublished: true, previewUrl: 'javascript:alert(1)', feedback: [] }]} />);
     expect(html).not.toContain('javascript:');
     expect(html).toContain('No project feedback from this client yet.');
+  });
+});
+
+describe('Client proposals', () => {
+  const item = { kind: 'project_proposal' as const, status: 'awaiting_client' as const, id: 'p1', fullName: 'Ana', email: 'ana@example.test',
+    company: null, title: 'Booking app', description: 'Let guests book online', requestedDeadline: null, submittedAt: '2026-11-03T00:00:00.000Z' };
+  it('lists proposals with their status and points to Inquiries for decisions', () => {
+    const html = renderToStaticMarkup(<ClientProposals proposals={[item]} error="" onOpenInquiries={() => undefined} />);
+    for (const shown of ['Booking app', 'Let guests book online', 'Waiting on the client', '1 still open', 'Inquiries']) expect(html).toContain(shown);
+  });
+  it('shows an empty state and errors', () => {
+    expect(renderToStaticMarkup(<ClientProposals proposals={[]} error="" onOpenInquiries={() => undefined} />)).toContain('hasn’t sent any project proposals');
+    expect(renderToStaticMarkup(<ClientProposals proposals={null} error="Nope" onOpenInquiries={() => undefined} />)).toContain('role="alert"');
   });
 });

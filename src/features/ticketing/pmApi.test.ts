@@ -255,3 +255,22 @@ describe('PM client list unread replies', () => {
     await expect(pmTicketApi.listClients()).rejects.toThrow('Client list response is invalid.');
   });
 });
+
+describe('PM client proposals transport', () => {
+  const proposal = (id: string, submittedAt: string, kind = 'project_proposal') => ({ kind, status: 'pending', id, fullName: 'Ana', email: 'ana@example.test',
+    company: null, title: 'Idea ' + id, description: 'Details', requestedDeadline: null, submittedAt });
+  it('reads open and handled proposals for one client account, newest first', async () => {
+    const request = vi.spyOn(apiService, 'ticketRequest')
+      .mockResolvedValueOnce({ items: [proposal('a', '2026-11-01T00:00:00.000Z')], nextCursor: null } as never)
+      .mockResolvedValueOnce({ items: [{ ...proposal('b', '2026-11-03T00:00:00.000Z'), status: 'accepted' }], nextCursor: null } as never);
+    const items = await pmTicketApi.listClientProposals('client:ana');
+    expect(items.map(item => item.id)).toEqual(['b', 'a']);
+    expect(request).toHaveBeenCalledWith('/tickets/intakes?limit=50&client=ana');
+    expect(request).toHaveBeenCalledWith('/tickets/intakes?limit=50&filter=handled&client=ana');
+  });
+  it('asks for nothing for a contact without an account', async () => {
+    const request = vi.spyOn(apiService, 'ticketRequest');
+    expect(await pmTicketApi.listClientProposals('ticket:t1')).toEqual([]);
+    expect(request).not.toHaveBeenCalled();
+  });
+});

@@ -319,8 +319,9 @@ export const pmTicketApi = {
     }
     return { phaseWorkflowEnabled: (value as { phaseWorkflowEnabled: boolean }).phaseWorkflowEnabled };
   },
-  async listCentralIntakes(after: string | null = null, filter: 'pending' | 'handled' = 'pending'): Promise<PmCentralIntakePage> {
-    const value = await apiService.ticketRequest<unknown>(`/tickets/intakes${query({ limit: '50', after, ...(filter === 'handled' ? { filter } : {}) })}`);
+  /** `client` (a client account ID) narrows the page to that client's project proposals. */
+  async listCentralIntakes(after: string | null = null, filter: 'pending' | 'handled' = 'pending', client?: string): Promise<PmCentralIntakePage> {
+    const value = await apiService.ticketRequest<unknown>(`/tickets/intakes${query({ limit: '50', after, ...(filter === 'handled' ? { filter } : {}), ...(client ? { client } : {}) })}`);
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Shared inquiry response is invalid.');
     const page = value as Record<string, unknown>;
     if (!Array.isArray(page.items) || (page.nextCursor !== null && typeof page.nextCursor !== 'string')) {
@@ -434,6 +435,17 @@ export const pmTicketApi = {
   async listClientConversations(clientGroupKey: string): Promise<PmClientConversationPage> {
     return parseClientConversationPage(await apiService.ticketRequest<unknown>(
       `/tickets/clients/${encodeId(clientGroupKey)}/conversations`));
+  },
+  /** A client account's project proposals, open and handled, newest first (the latest 50 of each). */
+  async listClientProposals(clientGroupKey: string): Promise<PmCentralIntakeItem[]> {
+    if (!/^client:\S+$/.test(clientGroupKey)) return [];
+    const client = clientGroupKey.slice('client:'.length);
+    const pages = await Promise.all([
+      pmTicketApi.listCentralIntakes(null, 'pending', client),
+      pmTicketApi.listCentralIntakes(null, 'handled', client),
+    ]);
+    return pages.flatMap(page => page.items).filter(item => item.kind === 'project_proposal')
+      .sort((a, b) => Date.parse(b.submittedAt) - Date.parse(a.submittedAt));
   },
   async listClients(): Promise<PmClientSummary[]> {
     const value = await apiService.ticketRequest<unknown>('/tickets/clients');

@@ -4,18 +4,19 @@ import { ArrowLeft, ArrowUpRight, FolderKanban, RefreshCw, Search, ShieldCheck, 
 import { useApp, useTabSessionState } from '@/app/AppContext';
 import { ApiRequestError } from '@/shared/services/apiService';
 import { LoadingRows } from '@/shared/components/ui/skeleton';
-import { pmTicketApi, pmTicketDocumentsApi, type PmClientConversation, type PmClientSummary, type PmTicketQueueItem } from './pmApi';
+import { pmTicketApi, pmTicketDocumentsApi, type PmCentralIntakeItem, type PmClientConversation, type PmClientSummary, type PmTicketQueueItem } from './pmApi';
 import { PmTicketsView, type WorkflowActions } from './PmTicketsView';
 import { pmTicketsIntakeEnabled, usePmWorkflowActions } from './PmTicketsPage';
-import { ClientConversations, ClientDocuments, ClientOverview, ClientProjects, loadClientProjects, loadClientRequests, type ClientProjectDetail } from './PmClientSections';
+import { ClientConversations, ClientDocuments, ClientOverview, ClientProjects, ClientProposals, loadClientProjects, loadClientRequests, type ClientProjectDetail } from './PmClientSections';
 import type { TicketDocumentsReadApi } from './ticketDocuments';
 
-export type ClientSection = 'overview' | 'tickets' | 'conversations' | 'documents' | 'projects' | 'access';
+export type ClientSection = 'overview' | 'tickets' | 'conversations' | 'documents' | 'proposals' | 'projects' | 'access';
 const SECTIONS: Array<{ id: ClientSection; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'tickets', label: 'Tickets' },
   { id: 'conversations', label: 'Conversations' },
   { id: 'documents', label: 'Documents' },
+  { id: 'proposals', label: 'Proposals' },
   { id: 'projects', label: 'Projects' },
   { id: 'access', label: 'Access' },
 ];
@@ -37,6 +38,14 @@ export function clientsLoadError(error: unknown): string {
 }
 
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
+
+/** Why a client's proposals could not load; an older server rejects the client filter. */
+export function proposalsLoadError(error: unknown): string {
+  const status = error instanceof ApiRequestError ? error.status : null;
+  if (status === 400 || status === 404) return 'Proposals by client aren’t available on the server yet. They appear once the server is updated; until then they are in Inquiries.';
+  if (status === 403) return 'Only project managers can see proposals.';
+  return 'Proposals could not be loaded. Refresh to try again.';
+}
 const shortDate = (value: string) => new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 /** Up to two initials for a client's avatar. */
 export const clientInitials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(part => part[0] ?? '').join('').toUpperCase() || '?';
@@ -116,6 +125,8 @@ export function PmClientsWorkspace({ api = pmTicketApi, documentsApi = pmTicketD
   const [conversations, setConversations] = useState<PmClientConversation[] | null>(null);
   const [conversationsError, setConversationsError] = useState('');
   const [projectDetails, setProjectDetails] = useState<ClientProjectDetail[] | null>(null);
+  const [proposals, setProposals] = useState<PmCentralIntakeItem[] | null>(null);
+  const [proposalsError, setProposalsError] = useState('');
   // A request picked on Overview, Conversations or Documents, opened in the Tickets tab.
   const [openRequestId, setOpenRequestId] = useState<string | null>(null);
 
@@ -143,13 +154,15 @@ export function PmClientsWorkspace({ api = pmTicketApi, documentsApi = pmTicketD
 
   // The open client's requests and latest messages, for Overview, Conversations and Documents.
   useEffect(() => {
-    setRequests(null); setConversations(null); setConversationsError(''); setOpenRequestId(null);
+    setRequests(null); setConversations(null); setConversationsError(''); setProposals(null); setProposalsError(''); setOpenRequestId(null);
     if (!selectedKey || !intakeEnabled) return;
     let current = true;
     void loadClientRequests(options => api.list(options), selectedKey).then(result => { if (current) setRequests(result.items); })
       .catch(() => { if (current) setRequests([]); });
     void api.listClientConversations(selectedKey).then(page => { if (current) setConversations(page.items); })
       .catch(() => { if (current) setConversationsError('Conversations could not be loaded. Refresh to try again.'); });
+    void api.listClientProposals(selectedKey).then(items => { if (current) setProposals(items); })
+      .catch(failure => { if (current) setProposalsError(proposalsLoadError(failure)); });
     return () => { current = false; };
   }, [api, selectedKey, intakeEnabled, refreshVersion, refreshToken]);
 
@@ -180,6 +193,7 @@ export function PmClientsWorkspace({ api = pmTicketApi, documentsApi = pmTicketD
     renderConversations={client => <ClientConversations client={client} requests={requests} conversations={conversations}
       error={conversationsError} onOpenRequest={openRequest} />}
     renderDocuments={() => <ClientDocuments requests={requests} documentsApi={documentsApi} onOpenRequest={openRequest} />}
+    renderProposals={() => <ClientProposals proposals={proposals} error={proposalsError} onOpenInquiries={onOpenInquiries} />}
     renderProjects={client => <ClientProjects client={client} projects={projectDetails} knownProjectIds={knownProjectIds} onOpenProject={onOpenProject} />} />;
 }
 
@@ -207,13 +221,14 @@ export interface PmClientsViewProps {
   renderOverview?: (client: PmClientSummary) => ReactNode;
   renderConversations?: (client: PmClientSummary) => ReactNode;
   renderDocuments?: (client: PmClientSummary) => ReactNode;
+  renderProposals?: (client: PmClientSummary) => ReactNode;
   /** Replaces the plain project list, as with preview links and feedback. */
   renderProjects?: (client: PmClientSummary) => ReactNode;
 }
 
 /** The Clients list and a client's page, from props alone. */
 export function PmClientsView({ clients, error, loading, search, onSearch, selectedKey, onSelect, section, onSection,
-  needsYouOnly = false, onNeedsYouOnly, renderProjects,
+  needsYouOnly = false, onNeedsYouOnly, renderProjects, renderProposals,
   knownProjectIds, onRefresh, onOpenProject, onOpenInquiries, renderTickets, renderOverview, renderConversations, renderDocuments }: PmClientsViewProps) {
   const selected = clients?.find(client => client.key === selectedKey) ?? null;
   const visible = useMemo(() => filterClients(clients ?? [], search, needsYouOnly), [clients, search, needsYouOnly]);
@@ -221,7 +236,7 @@ export function PmClientsView({ clients, error, loading, search, onSearch, selec
 
   if (selected) {
     const optional: Partial<Record<ClientSection, ((client: PmClientSummary) => ReactNode) | undefined>> = {
-      overview: renderOverview, conversations: renderConversations, documents: renderDocuments,
+      overview: renderOverview, conversations: renderConversations, documents: renderDocuments, proposals: renderProposals,
     };
     const sections = SECTIONS.filter(item => !(item.id in optional) || optional[item.id]);
     const openSection: ClientSection = sections.some(item => item.id === section) ? section : 'tickets';
@@ -256,6 +271,7 @@ export function PmClientsView({ clients, error, loading, search, onSearch, selec
         {openSection === 'tickets' && renderTickets(selected.key)}
         {openSection === 'conversations' && renderConversations?.(selected)}
         {openSection === 'documents' && renderDocuments?.(selected)}
+        {openSection === 'proposals' && renderProposals?.(selected)}
 
         {openSection === 'projects' && <div className="h-full overflow-y-auto px-6 py-5">
           {renderProjects ? renderProjects(selected) : selected.projects.length === 0
