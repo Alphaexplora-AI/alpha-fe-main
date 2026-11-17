@@ -228,6 +228,8 @@ const localMethods: Partial<typeof pmTicketApi> = {
         waitingClient: open.filter(ticket => ticket.actionOwner === 'client').length,
         open: open.length, closed: tickets.length - open.length,
         unlinkedOpen: open.filter(ticket => !ticket.projectId).length, accessRevoked: 0,
+        // A request counts as unread when its newest message is from the client.
+        unreadReplies: tickets.filter(ticket => ticket.messages.at(-1)?.author === 'client').length,
       },
       projects: [...projects].map(([projectId, name]) => ({ projectId, name, previewPublished: false })),
       lastActivityAt: new Date(Math.max(...tickets.map(ticket => Date.parse(ticket.updatedAt)))).toISOString(),

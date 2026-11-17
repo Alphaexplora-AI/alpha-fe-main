@@ -7,7 +7,7 @@ vi.mock('@/app/AppContext', () => ({ useApp: () => ({}), useTabSessionState: <T,
 vi.mock('./PmTicketsView', () => ({ PmTicketsView: () => null }));
 
 import { ApiRequestError } from '@/shared/services/apiService';
-import { PmClientsView, clientInitials, clientsLoadError, clientsSummary, filterClients, type PmClientsViewProps } from './PmClientsPage';
+import { PmClientsView, clientInitials, clientNeedsYou, clientsLoadError, clientsSummary, filterClients, type PmClientsViewProps } from './PmClientsPage';
 import type { PmClientSummary } from './pmApi';
 
 const ana: PmClientSummary = {
@@ -160,5 +160,21 @@ describe('Client list upgrades', () => {
   it('makes initials from up to two words', () => {
     expect(clientInitials('Ana Maria Cruz')).toBe('AM');
     expect(clientInitials('  ')).toBe('?');
+  });
+});
+
+describe('Unread client replies', () => {
+  const benUnread: PmClientSummary = { ...ben, tickets: { ...ben.tickets, unreadReplies: 2 } };
+  it('counts an unread reply as needing the PM', () => {
+    expect(clientNeedsYou(benUnread)).toBe(true);
+    expect(clientNeedsYou(ben)).toBe(false);
+    expect(filterClients([ana, benUnread], '', true).map(client => client.key)).toEqual(['client:ana', 'client:ben']);
+  });
+  it('adds unread replies to the summary and the row', () => {
+    expect(clientsSummary([ana, benUnread])).toBe('2 clients need you · 2 unread replies');
+    expect(render({ clients: [benUnread] })).toContain('2 unread');
+  });
+  it('shows nothing for a server that does not report unread replies', () => {
+    expect(render({ clients: [ben] })).not.toContain('unread');
   });
 });

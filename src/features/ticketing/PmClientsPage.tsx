@@ -41,19 +41,24 @@ const shortDate = (value: string) => new Date(value).toLocaleDateString(undefine
 /** Up to two initials for a client's avatar. */
 export const clientInitials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(part => part[0] ?? '').join('').toUpperCase() || '?';
 
+/** A client needs the PM when a request waits on them or a client reply is unread. */
+export const clientNeedsYou = (client: PmClientSummary) => client.tickets.needsPm > 0 || (client.tickets.unreadReplies ?? 0) > 0;
+
 /** Clients matching a search (name, company or project) and, optionally, only those needing the PM. */
 export function filterClients(clients: readonly PmClientSummary[], search: string, needsYouOnly: boolean): PmClientSummary[] {
   const query = search.trim().toLowerCase();
-  return clients.filter(client => (!needsYouOnly || client.tickets.needsPm > 0) && (!query
+  return clients.filter(client => (!needsYouOnly || clientNeedsYou(client)) && (!query
     || [client.displayName, client.company ?? '', ...client.projects.map(project => project.name)].join(' ').toLowerCase().includes(query)));
 }
 
 /** One line on what is waiting, across all clients; empty when nothing is. */
 export function clientsSummary(clients: readonly PmClientSummary[]): string {
-  const needYou = clients.filter(client => client.tickets.needsPm > 0).length;
+  const needYou = clients.filter(clientNeedsYou).length;
+  const unread = clients.reduce((total, client) => total + (client.tickets.unreadReplies ?? 0), 0);
   const waiting = clients.reduce((total, client) => total + client.tickets.waitingClient, 0);
   return [
     needYou > 0 && `${plural(needYou, 'client')} ${needYou === 1 ? 'needs' : 'need'} you`,
+    unread > 0 && plural(unread, 'unread reply', 'unread replies'),
     waiting > 0 && `${plural(waiting, 'request')} ${waiting === 1 ? 'is' : 'are'} waiting on the client`,
   ].filter(Boolean).join(' · ');
 }
@@ -335,9 +340,7 @@ export function PmClientsView({ clients, error, loading, search, onSearch, selec
                   </span>
                 </button>
               </td>
-              <td className="py-2.5 pr-3">{client.tickets.needsPm > 0
-                ? <span className="rounded-full bg-selected px-2 py-0.5 text-[11.5px] font-semibold text-selected-content">{client.tickets.needsPm}</span>
-                : <span className="text-content-muted">—</span>}</td>
+              <td className="py-2.5 pr-3"><NeedsYouCell tickets={client.tickets} /></td>
               <td className="hidden py-2.5 pr-3 tabular-nums text-content-secondary sm:table-cell">{client.tickets.open}</td>
               <td className="hidden py-2.5 pr-3 tabular-nums text-content-secondary md:table-cell">{client.projects.length}</td>
               <td className="hidden py-2.5 pr-3 md:table-cell"><AccessBadge access={client.access} compact /></td>
@@ -351,6 +354,16 @@ export function PmClientsView({ clients, error, loading, search, onSearch, selec
       </div>}
     </div>
   </div>;
+}
+
+/** Requests waiting on the PM, and unread client replies beneath. */
+function NeedsYouCell({ tickets }: { tickets: PmClientSummary['tickets'] }) {
+  const unread = tickets.unreadReplies ?? 0;
+  if (!tickets.needsPm && !unread) return <span className="text-content-muted">—</span>;
+  return <span className="flex flex-col items-start gap-0.5">
+    {tickets.needsPm > 0 && <span className="rounded-full bg-selected px-2 py-0.5 text-[11.5px] font-semibold text-selected-content">{tickets.needsPm}</span>}
+    {unread > 0 && <span className="whitespace-nowrap text-[11px] font-medium text-link">{unread} unread</span>}
+  </span>;
 }
 
 /** Company and the projects the client can see, one muted line. */
