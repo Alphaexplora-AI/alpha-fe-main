@@ -1,6 +1,6 @@
 import { freshQuota, limitForRuntime, useProviderUsage } from '@/shared/layout/ProviderUsageContext';
 import { ChatThreadDialogs } from './ChatThreadDialogs';
-import { LoadingRows } from '@/shared/components/ui/skeleton';
+import { LoadingRows, SkeletonText } from '@/shared/components/ui/skeleton';
 import { AgentRobotAvatar } from '@/features/agents/AgentRobotAvatar';
 import { buildDecisionContext } from './chatBuildDecision';
 import { CHAT_ORCHESTRATOR_BAR_ENABLED } from '@/config/features';
@@ -1635,7 +1635,7 @@ export const ChatView: React.FC<{ unifiedNavigation?: boolean }> = ({ unifiedNav
     .sort((a, b) => Date.parse(b.lastMessageAt) - Date.parse(a.lastMessageAt));
   const visibleProjects = showAllProjects ? chatProjects : chatProjects.slice(0, 6);
   const chatListEmptyLabel = chatThreadsLoadState === 'loading'
-    ? 'Loading chats…'
+    ? <SkeletonText label="Loading chats" lines={2} className="py-0.5" />
     : chatThreadsLoadState === 'error' || chatThreadsLoadState === 'stale'
       ? 'Chats unavailable'
       : 'No chats';

@@ -1,4 +1,5 @@
 import { createTicketPreview, type PreviewSeedTicket } from './previewModel';
+import { previewDelay, withPreviewLatency } from './previewLatency';
 import type { TicketDocumentsReadApi } from './ticketDocuments';
 import {
   pmTicketApi,
@@ -295,7 +296,7 @@ const localMethods: Partial<typeof pmTicketApi> = {
 export const pmPreviewApi = new Proxy(pmTicketApi, {
   get(target, property, receiver) {
     if (typeof property === 'string' && property in localMethods) {
-      return localMethods[property as keyof typeof localMethods];
+      return withPreviewLatency(localMethods[property as keyof typeof localMethods] as (...args: never[]) => unknown);
     }
     const value = Reflect.get(target, property, receiver);
     if (typeof value === 'function') return async () => {
@@ -307,7 +308,7 @@ export const pmPreviewApi = new Proxy(pmTicketApi, {
 
 /** Keep document inspection local too; a preview must never query real client files. */
 export const pmPreviewDocumentsApi: TicketDocumentsReadApi = {
-  list: async () => [],
+  list: withPreviewLatency(async () => []),
   download: async () => { throw new Error('Downloads are disabled in the local UI preview.'); },
 };
 
@@ -333,6 +334,7 @@ const DEMO_INQUIRIES: PmCentralIntakeItem[] = [
 /** Read-only shared inquiry transport used by the development PM preview. */
 export const pmPreviewIntakeApi = {
   async listCentralIntakes(_after: string | null = null, filter: 'pending' | 'handled' = 'pending'): Promise<PmCentralIntakePage> {
+    await previewDelay();
     return { items: DEMO_INQUIRIES.filter(item => filter === 'pending' ? item.status === 'pending' : item.status !== 'pending'), nextCursor: null };
   },
   async acceptCentralIntake(): Promise<never> {

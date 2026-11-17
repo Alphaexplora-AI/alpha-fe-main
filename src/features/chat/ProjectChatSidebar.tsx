@@ -4,6 +4,7 @@ import { useApp } from '@/app/AppContext';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/shared/components/ui/dropdown-menu';
 import { loadFromStorage, saveToStorage } from '@/shared/lib/storage';
 import { isDesktop } from '@/shared/desktop';
+import { Skeleton, SkeletonRegion } from '@/shared/components/ui/skeleton';
 import { entriesHeight, fitEntries, LABEL_HEIGHT, ROW_HEIGHT, useFitHeight, type FitEntry } from '@/shared/layout/useFitHeight';
 import type { ChatThread, Project } from '@/shared/types';
 import { CreateProjectModal } from '@/features/projects/CreateProjectModal';
@@ -103,7 +104,7 @@ export function ProjectChatSidebar({ onNavigate, storageKey }: { onNavigate: () 
   };
 
   const status: Entry[] = chatThreadsLoadState === 'loading' && !chatThreads.length
-    ? [{ key: 'status', height: LABEL_HEIGHT, node: <p role="status" className="flex h-7 items-center px-2 text-xs text-content-muted">Loading chats…</p> }]
+    ? [{ key: 'status', height: LABEL_HEIGHT * 3, node: <SkeletonRegion label="Loading chats">{['w-3/4', 'w-1/2', 'w-2/3'].map(width => <div key={width} className="flex h-7 items-center px-2"><Skeleton className={'h-2.5 ' + width} /></div>)}</SkeletonRegion> }]
     : ['error', 'stale'].includes(chatThreadsLoadState)
       ? [{ key: 'status', height: LABEL_HEIGHT, node: <p role="status" className="flex h-7 items-center gap-1 px-2 text-xs text-status-warning">
           {chatThreadsLoadState === 'stale' ? 'Showing saved chats.' : 'Chats unavailable.'}

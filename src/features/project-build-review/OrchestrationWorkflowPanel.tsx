@@ -1,3 +1,4 @@
+import { LoadingRows } from '@/shared/components/ui/skeleton';
 import React, { useEffect, useMemo, useState } from 'react';
 import { OrchestrationPlanPreview } from './OrchestrationPlanPreview';
 import {
@@ -279,7 +280,7 @@ export const ReviewDiff: React.FC<{ projectId: string; runId: string; branchName
       <span className="shrink-0 text-[10px] font-medium text-link">{open ? 'Hide changes' : savedCheckpoint ? 'Review checkpoint' : 'Open review'}</span>
     </button>
     {open && <div className="border-t border-divider px-4 py-3">
-      {loading && <div role="status" className="flex items-center gap-2 py-3 text-xs text-content-secondary"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />Loading {savedCheckpoint ? 'the saved checkpoint' : 'the validated patch'}…</div>}
+      {loading && <LoadingRows label={savedCheckpoint ? 'Loading the saved checkpoint' : 'Loading the validated patch'} layout="code" rows={6} className="py-2" />}
       {error && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-status-danger-border bg-status-danger-subtle p-3" role="alert"><p className="text-xs leading-5 text-status-danger">{error}</p><button type="button" onClick={() => void loadPreview()} disabled={loading} className="min-h-8 rounded-md border border-status-danger-border px-2.5 text-[10px] font-semibold text-status-danger hover:bg-status-danger-subtle disabled:opacity-50">Retry</button></div>}
       {preview?.repositories && preview.repositories.length > 1 ? preview.repositories.map(repository => <div key={repository.repository} className="border-t border-divider py-4 first:border-0 first:pt-0 last:pb-0">
         <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-content-muted"><span className="font-semibold text-content">{repository.repository}</span><span>Branch <code className="ml-1 text-content-secondary">{repository.branchName}</code></span><span>{repository.reviewType === 'saved_checkpoint' ? 'Saved checkpoint' : 'Checked change'} <code className="ml-1 text-content-secondary">{repository.resultCommit.slice(0, 7)}</code></span></div>

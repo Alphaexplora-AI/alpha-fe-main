@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowUpRight, Download, ExternalLink, FileText, FolderKanban, Lightbulb, MessageSquare, Paperclip } from 'lucide-react';
 
-import { LoadingRows } from '@/shared/components/ui/skeleton';
+import { Skeleton, SkeletonList, SkeletonRegion } from '@/shared/components/ui/skeleton';
 import type { pmTicketApi, PmCentralIntakeItem, PmClientConversation, PmClientSummary, PmProjectFeedbackMessage, PmTicketQueueItem, PmTicketQueueOptions, PmTicketQueuePage } from './pmApi';
 import { pmTicketNextAction } from './pmTicketNextAction';
 import { downloadTicketDocument, type TicketDocument, type TicketDocumentsReadApi } from './ticketDocuments';
@@ -73,6 +73,29 @@ function Panel({ title, caption, children }: { title: string; caption?: string; 
 const rowClass = 'grid w-full grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-3 border-t border-divider px-4 py-2.5 text-left';
 const Empty = ({ children }: { children: ReactNode }) => <p className="px-4 py-4 text-[13px] text-content-muted">{children}</p>;
 
+/** A Panel-shaped placeholder: title bar, then icon / two-line / date rows like the real list. */
+function PanelSkeleton({ rows = 3 }: { rows?: number }) {
+  return <div className="min-w-0 rounded-lg border border-divider bg-surface">
+    <div className="flex items-center justify-between gap-3 px-4 pb-2.5 pt-3.5"><Skeleton className="h-3 w-28" /><Skeleton className="h-2 w-16" /></div>
+    {Array.from({ length: rows }, (_, index) => <div key={index} className={rowClass}>
+      <Skeleton className="h-3.5 w-3.5 justify-self-center" />
+      <span className="min-w-0 space-y-1.5"><Skeleton className={`h-3 ${index % 2 ? 'w-2/5' : 'w-3/5'}`} /><Skeleton className="h-2 w-1/3" /></span>
+      <Skeleton className="h-2 w-10" />
+    </div>)}
+  </div>;
+}
+
+function OverviewSkeleton() {
+  return <SkeletonRegion label="Loading this client" className="px-6 py-5">
+    <div className="mb-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-divider bg-divider md:grid-cols-4">
+      {[0, 1, 2, 3].map(index => <div key={index} className="flex items-center justify-between gap-3 bg-surface px-4 py-3.5">
+        <Skeleton className="h-2.5 w-20" /><Skeleton className="h-5 w-6" />
+      </div>)}
+    </div>
+    <div className="grid items-start gap-4 lg:grid-cols-[1.3fr_1fr]"><PanelSkeleton rows={4} /><PanelSkeleton rows={3} /></div>
+  </SkeletonRegion>;
+}
+
 interface ActivityEntry { at: string; requestId: string; message: boolean; text: string }
 
 /** Open requests first (or all when none are open), those needing the PM on top, newest next. */
@@ -107,7 +130,7 @@ export function ClientOverview({ client, requests, conversations, onOpenRequest 
   conversations: PmClientConversation[] | null;
   onOpenRequest: (requestId: string) => void;
 }) {
-  if (!requests) return <div className="px-6 py-5"><LoadingRows label="Loading this client" rows={3} /></div>;
+  if (!requests) return <OverviewSkeleton />;
   const open = requests.filter(isOpenRequest);
   const listed = listedRequests(requests);
   const activity = recentActivity(client, requests, conversations);
@@ -163,7 +186,7 @@ export function ClientConversations({ client, requests, conversations, error, on
 }) {
   const byId = useMemo(() => new Map((requests ?? []).map(item => [item.id, item])), [requests]);
   if (error) return <p role="alert" className="mx-6 my-5 rounded-md border border-status-danger-border bg-status-danger-subtle px-3 py-2 text-[13px] text-status-danger">{error}</p>;
-  if (!conversations || !requests) return <div className="px-6 py-5"><LoadingRows label="Loading conversations" rows={3} /></div>;
+  if (!conversations || !requests) return <SkeletonRegion label="Loading conversations" className="px-6 py-5"><PanelSkeleton rows={4} /></SkeletonRegion>;
   const updated = (item: PmClientConversation) => item.latestMessage?.createdAt ?? byId.get(item.ticketId)?.updatedAt ?? '';
   const rows = conversations.filter(item => byId.has(item.ticketId)).sort((a, b) => Date.parse(updated(b)) - Date.parse(updated(a)));
   return <div className="h-full overflow-y-auto px-6 py-5">
@@ -214,7 +237,7 @@ export function ClientDocuments({ requests, documentsApi, onOpenRequest }: {
     catch { setDownloadError(`${entry.document.filename} could not be downloaded.`); }
     finally { setDownloading(''); }
   }
-  if (!requests || !documents) return <div className="px-6 py-5"><LoadingRows label="Loading documents" rows={3} /></div>;
+  if (!requests || !documents) return <SkeletonRegion label="Loading documents" className="px-6 py-5"><div className="mb-3 flex gap-2"><Skeleton className="h-8 w-32" /><Skeleton className="h-8 w-24" /></div><PanelSkeleton rows={4} /></SkeletonRegion>;
   const shown = documents.filter(entry => (!requestFilter || entry.request.id === requestFilter) && (!authorFilter || entry.document.author === authorFilter));
   const select = 'h-8 rounded-md border border-control bg-well px-2.5 text-xs text-content';
   return <div className="h-full overflow-y-auto px-6 py-5">
@@ -300,7 +323,7 @@ export function ClientProjects({ client, projects, knownProjectIds, onOpenProjec
   onOpenProject: (projectId: string) => void;
 }) {
   if (!client.projects.length) return <p className="text-[13px] text-content-muted">This client can’t see any projects yet. A project shows here once one of their requests is linked to it and shared with them.</p>;
-  if (!projects) return <LoadingRows label="Loading projects" rows={2} />;
+  if (!projects) return <SkeletonList label="Loading projects" variant="card" rows={2} className="lg:grid-cols-2" />;
   return <div className="grid gap-4 lg:grid-cols-2">
     {projects.map(project => <ClientProjectCard key={project.projectId} client={client} project={project}
       canOpen={knownProjectIds.has(project.projectId)} onOpenProject={onOpenProject} />)}
@@ -358,7 +381,7 @@ export function ClientProposals({ proposals, error, onOpenInquiries }: {
   onOpenInquiries: () => void;
 }) {
   if (error) return <div className="px-6 py-5"><p role="alert" className="rounded-md border border-status-danger-border bg-status-danger-subtle px-3 py-2 text-[13px] text-status-danger">{error}</p></div>;
-  if (!proposals) return <div className="px-6 py-5"><LoadingRows label="Loading proposals" rows={2} /></div>;
+  if (!proposals) return <SkeletonRegion label="Loading proposals" className="px-6 py-5"><PanelSkeleton rows={3} /></SkeletonRegion>;
   const open = proposals.filter(item => item.status === 'pending' || item.status === 'awaiting_client' || item.status === undefined).length;
   return <div className="h-full overflow-y-auto px-6 py-5">
     <Panel title="Project proposals" caption={open ? `${open} still open` : undefined}>

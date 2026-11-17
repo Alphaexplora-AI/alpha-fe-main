@@ -1,4 +1,5 @@
 import { EntrySkeleton, LoadingRows } from '@/shared/components/ui/skeleton';
+import { TicketDetailSkeleton } from './TicketingSkeletons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronsUpDown, FileText, FolderKanban, House,
@@ -837,7 +838,7 @@ export default function ClientPortal({ api = clientTicketApi, inspectionOnly = f
             <section className={`client-request-detail-pane ${selectedId && !requestListShown ? '' : 'client-mobile-hidden'}`} aria-label="Selected request">
               {!selectedId ? <EmptyState title="Choose a request" body="Select a request to see its status, messages, and any action your project manager needs from you." />
                 : !activeRequest ? <EmptyState title="Request not available" body="Refresh the list and try again. If it is still missing, contact your project manager." />
-                    : (detailLoading || (!detail && !detailError)) ? <LoadingRows label="Loading request" layout="detail" className="p-5" />
+                    : (detailLoading || (!detail && !detailError)) ? <TicketDetailSkeleton label="Loading request" stepper />
                       : detailError ? <div role="alert" className="m-4 rounded-lg border border-status-danger-border bg-status-danger-subtle p-4 text-xs text-status-danger">{detailError}</div>
                         : detail && <>
                           {showPendingLinkNotice && <div role="status" className="client-project-pending-notice">
