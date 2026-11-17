@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check, CheckCircle2, ChevronDown, ChevronUp, Clock3, Copy, ExternalLink, FileText, FolderKanban, LockKeyhole, MessageSquare, Paperclip, Send, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle2, Clock3, Copy, ExternalLink, FileText, FolderKanban, LockKeyhole, MessageSquare, Paperclip, Send, ShieldCheck, UserRound } from 'lucide-react';
 
 import type {
   ClientTicketCommandInput, ClientTicketDetail as ClientTicketRecord,
@@ -72,7 +72,6 @@ export function ClientTicketDetail({
   const [previewOpenedKey, setPreviewOpenedKey] = useState('');
   const [scopeChangeOpen, setScopeChangeOpen] = useState(false);
   const [scopeChangeBody, setScopeChangeBody] = useState('');
-  const [progressOpen, setProgressOpen] = useState(false);
   const deliveryKey = clientDeliveryReviewKey(ticket);
   const inspected = useCallback((verified: boolean) => {
     setInspectedKey(verified ? deliveryKey : ''); setReviewAcknowledged(false); setConfirming(null);
@@ -130,9 +129,9 @@ export function ClientTicketDetail({
   }
 
   const tabs: Array<{ id: ClientTicketTab; label: string; icon: React.ReactNode }> = [
-    { id: 'conversation', label: 'Overview', icon: <MessageSquare size={14} /> },
+    { id: 'conversation', label: 'About', icon: <MessageSquare size={14} /> },
     { id: 'details', label: 'Details', icon: <FileText size={14} /> },
-    ...(communicationEnabled ? [{ id: 'documents' as const, label: 'Documents', icon: <Paperclip size={14} /> }] : []),
+    ...(communicationEnabled ? [{ id: 'documents' as const, label: 'Files', icon: <Paperclip size={14} /> }] : []),
   ];
   const panelScroll = 'client-detail-panel';
 
@@ -143,11 +142,8 @@ export function ClientTicketDetail({
         <div className="client-detail-title-row">
           <div className="min-w-0">
             <h2 className="client-detail-title">{ticket.title}</h2>
-            <div className="client-detail-reference-row">
-              <span className="client-detail-reference">{ticket.reference}</span>
-              <button type="button" onClick={copyReference} aria-label="Copy request reference" className="client-copy-reference">{copied ? <Check size={14} /> : <Copy size={14} />}</button>
-              {copied && <span role="status" className="client-copied-note">Copied</span>}
-            </div>
+            {/* A plain sentence instead of the ticket code; the reference lives at the bottom of the side panel. */}
+            <p className={`client-detail-summary ${needsAction ? 'needs-action' : ''}`}>{progress.label}</p>
             <p className="client-detail-date">Created {time(ticket.createdAt)} <span aria-hidden="true">·</span> Updated {time(ticket.updatedAt)}</p>
           </div>
           <div className="client-detail-heading-actions">
@@ -156,6 +152,7 @@ export function ClientTicketDetail({
             {!newRequestsDisabled && <button onClick={onAdditionalWork} disabled={busy || workflowActionsDisabled} className={`${secondary} min-h-[44px]`}>Request additional work</button>}
           </div>
         </div>
+        {progressSteps.length > 0 && <div className="client-detail-tracker"><ClientProgressStrip steps={progressSteps} /></div>}
       </div>
     </header>
 
@@ -189,7 +186,7 @@ export function ClientTicketDetail({
         busy={busy}
         writesAvailable={canReply}
         inputId="client-ticket-reply"
-        placeholder="Write a message…"
+        placeholder="Message your project manager…"
         sendAriaLabel="Send reply"
         composerClassName="client-reply-form"
         composerNote="Only you and your project manager can see this. Enter sends · Shift + Enter starts a new line."
@@ -200,7 +197,7 @@ export function ClientTicketDetail({
 
 
       </div>
-      <ChatContextPanel label="Project overview" activeSection={tab} onClose={() => setTab('conversation')}>
+      <ChatContextPanel label="About this request" activeSection={tab} onClose={() => setTab('conversation')}>
     <div role="tablist" aria-label="Request sections" className="client-detail-tabs role-chat-tools">
       {tabs.map(item => <button key={item.id} role="tab" id={`client-tab-${item.id}`} aria-selected={tab === item.id} aria-controls={`client-panel-${item.id}`}
         onClick={() => setTab(item.id)}
@@ -265,29 +262,33 @@ export function ClientTicketDetail({
         </section>}
       </div>
         <div role="tabpanel" id="client-panel-conversation" aria-labelledby="client-tab-conversation" hidden={tab !== 'conversation'}>
-    <section aria-live="polite" className={`client-detail-status client-sidebar-progress ${needsAction ? 'needs-action' : ''} ${progressOpen ? 'is-open' : 'is-collapsed'}`}>
+    <section aria-live="polite" className={`client-detail-status client-sidebar-progress is-open ${needsAction ? 'needs-action' : ''}`}>
       <div className="client-detail-status-head">
         <div className="client-detail-status-copy">
         <span className="client-detail-status-icon"><Clock3 size={16} /></span>
-          <div><span className="client-detail-status-eyebrow">Current request status</span><h2>{needsAction ? `Action needed: ${progress.label}` : progress.label}</h2><p>{progress.description}</p></div>
+          <div><span className="client-detail-status-eyebrow">Where it stands</span><h2>{needsAction ? `Action needed: ${progress.label}` : progress.label}</h2><p>{progress.description}</p></div>
         </div>
-        <div className="client-detail-status-actions">
-          {needsAction && canReply && tab !== 'details' && <button type="button" onClick={() => setTab('details')} className={`${primary} min-h-[44px] client-review-action`}>{scopeDecision ? 'Review proposed work' : 'Review result'}</button>}
-          {progressSteps.length > 0 && <button type="button" className="client-detail-status-toggle" aria-expanded={progressOpen} aria-controls="client-request-progress" onClick={() => setProgressOpen(value => !value)}>
-            <span>{progressOpen ? 'Hide progress' : 'Show progress'}</span>{progressOpen ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
-          </button>}
-        </div>
+        {needsAction && canReply && tab !== 'details' && <div className="client-detail-status-actions">
+          <button type="button" onClick={() => setTab('details')} className={`${primary} min-h-[44px] client-review-action`}>{scopeDecision ? 'Review proposed work' : 'Review result'}</button>
+        </div>}
       </div>
-      {progressSteps.length > 0 && <div id="client-request-progress" hidden={!progressOpen} className="client-detail-progress"><ClientProgressStrip steps={progressSteps} /></div>}
     </section>
-        <section className="role-chat-context__section"><h3>Your request</h3><p>{ticket.description}</p><small>Created {time(ticket.createdAt)}</small>
-          {ticket.request?.requestedDeadline && <small>Requested date: {ticket.request.requestedDeadline} · not guaranteed</small>}
+        <section className="role-chat-context__section client-about-manager"><h3>Your project manager</h3>
+          <p className="client-about-person"><span className="client-pm-avatar" aria-hidden="true"><UserRound size={14} /></span>Ask questions and share updates in the conversation.</p>
+          <small><LockKeyhole size={12} className="inline" /> Private between you and your project manager</small></section>
+        <section className="role-chat-context__section"><h3>What you asked for</h3><p>{ticket.description}</p><small>Sent {time(ticket.createdAt)}</small>
+          {ticket.request?.requestedDeadline && <small>Hoped-for date: {ticket.request.requestedDeadline} · not guaranteed</small>}
         </section>
-        <section className="role-chat-context__section"><h3>Shared project</h3><p>{ticket.sharedProjectName ?? 'Your project manager will share project updates here.'}</p>
-          <button type="button" className="role-chat-context__link" onClick={() => setTab('details')}><FolderKanban size={15} />View request details</button>
+        <section className="role-chat-context__section"><h3>Project</h3><p>{ticket.sharedProjectName ?? 'Your project manager will link this to a project.'}</p>
+          <button type="button" className="role-chat-context__link" onClick={() => setTab('details')}><FolderKanban size={15} />{needsAction ? 'See the proposal and result' : 'See full details'}</button>
         </section>
-        {communicationEnabled && <section className="role-chat-context__section"><h3>Shared files</h3><p>Documents shared on this request.</p><button type="button" className="role-chat-context__link" onClick={() => setTab('documents')}><Paperclip size={15} />Open documents</button></section>}
-        <section className="role-chat-context__section"><h3>Your project manager</h3><p>Send questions and updates in this conversation.</p><small><LockKeyhole size={12} className="inline" /> Private between you and your project manager</small></section>
+        {communicationEnabled && <section className="role-chat-context__section"><h3>Files</h3><p>Share or download files for this request.</p><button type="button" className="role-chat-context__link" onClick={() => setTab('documents')}><Paperclip size={15} />Open files</button></section>}
+        <section className="role-chat-context__section client-about-reference"><h3>Reference</h3>
+          <p className="client-about-reference-row"><span className="client-detail-reference">{ticket.reference}</span>
+            <button type="button" onClick={copyReference} aria-label="Copy request reference" className="client-copy-reference">{copied ? <Check size={14} /> : <Copy size={14} />}</button>
+            {copied && <span role="status" className="client-copied-note">Copied</span>}</p>
+          <small>Mention this if you contact your project manager outside the portal.</small>
+        </section>
         </div>
       </ChatContextPanel>
     </div>
