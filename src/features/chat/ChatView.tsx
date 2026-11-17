@@ -599,7 +599,8 @@ export const ChatView: React.FC<{ unifiedNavigation?: boolean }> = ({ unifiedNav
   /** What is open in the right side panel, one tab each, and which tab is showing. */
   const panelKey = (key: string) => `${sessionStateKey(key)}.${activeWorkspace?.id ?? ''}.${currentUser?.id ?? ''}`;
   const [panelVisible, setPanelVisible] = useTabSessionState<boolean>(panelKey('panelVisible'), false);
-  const [summaryOpen, setSummaryOpen] = useTabSessionState<boolean>(panelKey('summaryOpen'), true);
+  // Closed until someone opens it: a chat opens on the conversation, and the summary is one click away.
+  const [summaryOpen, setSummaryOpen] = useTabSessionState<boolean>(panelKey('summaryOpen'), false);
 
   const showSidePanel = () => {
     setPanelVisible(true);
