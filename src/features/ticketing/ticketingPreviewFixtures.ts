@@ -249,6 +249,14 @@ const localMethods: Partial<typeof pmTicketApi> = {
     ] : [];
     return { items, nextCursor: null };
   },
+  async listClientProposals(clientGroupKey: string) {
+    return clientGroupKey === 'client:preview-northstar' ? [{
+      kind: 'project_proposal' as const, status: 'pending' as const, id: 'preview-proposal-1', fullName: 'Northstar Demo Co.',
+      email: 'ops@example.test', company: 'Northstar Demo Co.', title: 'Customer self-service portal',
+      description: 'A portal where our customers can check order status and download invoices without calling support.',
+      requestedDeadline: null, submittedAt: '2026-10-06T11:15:00+08:00',
+    }] : [];
+  },
   async listClientConversations(clientGroupKey: string): Promise<PmClientConversationPage> {
     const items = DEMO_TICKETS.filter(ticket => clientGroupKeyOf(ticket) === clientGroupKey)
       .sort((a, b) => (a.id < b.id ? -1 : 1))

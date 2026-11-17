@@ -7,7 +7,7 @@ vi.mock('@/app/AppContext', () => ({ useApp: () => ({}), useTabSessionState: <T,
 vi.mock('./PmTicketsView', () => ({ PmTicketsView: () => null }));
 
 import { ApiRequestError } from '@/shared/services/apiService';
-import { PmClientsView, clientInitials, clientNeedsYou, clientsLoadError, clientsSummary, filterClients, type PmClientsViewProps } from './PmClientsPage';
+import { PmClientsView, clientInitials, clientNeedsYou, clientsLoadError, proposalsLoadError, clientsSummary, filterClients, type PmClientsViewProps } from './PmClientsPage';
 import type { PmClientSummary } from './pmApi';
 
 const ana: PmClientSummary = {
@@ -176,5 +176,18 @@ describe('Unread client replies', () => {
   });
   it('shows nothing for a server that does not report unread replies', () => {
     expect(render({ clients: [ben] })).not.toContain('unread');
+  });
+});
+
+describe('Proposals tab', () => {
+  it('appears after Documents when provided', () => {
+    const html = render({ selectedKey: 'client:ana', section: 'proposals', renderDocuments: () => <p>Docs</p>, renderProposals: () => <p>Proposal list</p> });
+    expect(html).toContain('Proposal list');
+    expect(html.indexOf('>Documents<')).toBeLessThan(html.indexOf('>Proposals<'));
+    expect(render({ selectedKey: 'client:ana', section: 'tickets' })).not.toContain('>Proposals<');
+  });
+  it('explains an older server and other failures', () => {
+    expect(proposalsLoadError(new ApiRequestError(400, 'x'))).toContain('aren’t available on the server yet');
+    expect(proposalsLoadError(new Error('boom'))).toContain('could not be loaded');
   });
 });

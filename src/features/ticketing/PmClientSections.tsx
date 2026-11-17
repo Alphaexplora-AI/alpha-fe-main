@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ArrowUpRight, Download, ExternalLink, FileText, FolderKanban, MessageSquare, Paperclip } from 'lucide-react';
+import { ArrowUpRight, Download, ExternalLink, FileText, FolderKanban, Lightbulb, MessageSquare, Paperclip } from 'lucide-react';
 
 import { LoadingRows } from '@/shared/components/ui/skeleton';
-import type { pmTicketApi, PmClientConversation, PmClientSummary, PmProjectFeedbackMessage, PmTicketQueueItem, PmTicketQueueOptions, PmTicketQueuePage } from './pmApi';
+import type { pmTicketApi, PmCentralIntakeItem, PmClientConversation, PmClientSummary, PmProjectFeedbackMessage, PmTicketQueueItem, PmTicketQueueOptions, PmTicketQueuePage } from './pmApi';
 import { pmTicketNextAction } from './pmTicketNextAction';
 import { downloadTicketDocument, type TicketDocument, type TicketDocumentsReadApi } from './ticketDocuments';
 import { time } from './ticketUi';
@@ -341,4 +341,34 @@ function ClientProjectCard({ client, project, canOpen, onOpenProject }: {
           </li>)}</ul>}
     </div>
   </section>;
+}
+
+const PROPOSAL_STATUS: Record<NonNullable<PmCentralIntakeItem['status']>, string> = {
+  pending: 'Waiting for your review', awaiting_client: 'Waiting on the client', accepted: 'Accepted', declined: 'Declined',
+};
+
+/** A client's project proposals, sent from their portal. Decisions stay in Inquiries. */
+export function ClientProposals({ proposals, error, onOpenInquiries }: {
+  proposals: PmCentralIntakeItem[] | null;
+  error: string;
+  onOpenInquiries: () => void;
+}) {
+  if (error) return <div className="px-6 py-5"><p role="alert" className="rounded-md border border-status-danger-border bg-status-danger-subtle px-3 py-2 text-[13px] text-status-danger">{error}</p></div>;
+  if (!proposals) return <div className="px-6 py-5"><LoadingRows label="Loading proposals" rows={2} /></div>;
+  const open = proposals.filter(item => item.status === 'pending' || item.status === 'awaiting_client' || item.status === undefined).length;
+  return <div className="h-full overflow-y-auto px-6 py-5">
+    <Panel title="Project proposals" caption={open ? `${open} still open` : undefined}>
+      {proposals.length ? <ul>{proposals.map(item => <li key={item.id} className={`${rowClass} items-start`}>
+        <Lightbulb className="mt-0.5 h-3.5 w-3.5 text-content-muted" aria-hidden="true" />
+        <span className="min-w-0">
+          <span className="block truncate text-[13px] font-medium text-content" title={item.title}>{item.title}</span>
+          <span className="block line-clamp-2 text-[12px] text-content-muted" title={item.description}>{item.description}</span>
+          <span className="mt-0.5 block text-[11.5px] text-content-secondary">{PROPOSAL_STATUS[item.status ?? 'pending']}</span>
+        </span>
+        <time dateTime={item.submittedAt} title={time(item.submittedAt)} className="text-[11.5px] tabular-nums text-content-muted">{shortWhen(item.submittedAt)}</time>
+      </li>)}</ul> : <Empty>This client hasn’t sent any project proposals.</Empty>}
+    </Panel>
+    <p className="mt-3 text-xs text-content-muted">Proposals are reviewed, clarified and accepted in{' '}
+      <button type="button" onClick={onOpenInquiries} className="font-semibold text-link hover:text-link-hover">Inquiries</button>.</p>
+  </div>;
 }
