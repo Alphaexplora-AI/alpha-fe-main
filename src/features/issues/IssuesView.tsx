@@ -17,7 +17,7 @@ import { isEpic } from '@/features/board-build/epic';
 import { BoardAlphaPanel } from '@/features/board-build/BoardAlphaPanel';
 import { TaskDetailDrawer } from './TaskDetailDrawer';
 import { CalendarView } from './CalendarView';
-import { initialsOf, taskHandoffMessage } from './taskFlow';
+import { initialsOf, taskHandoffMessage, taskStage } from './taskFlow';
 import {
   Kanban,
   List,
@@ -205,7 +205,7 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
     canRunBuilds && buildStatusFresh && issue.status !== 'done' && !hasActiveBuild(issue) &&
     !issueBuilds[issue.id]?.blocker && !['waiting', 'planning'].includes(issueBuilds[issue.id]?.request?.status ?? '');
   const boardColumnFor = (issue: Issue): IssueStatus =>
-    issue.status !== 'done' && hasActiveBuild(issue) ? 'agent_running' : issue.status;
+    taskStage(issue, issueBuilds[issue.id]?.status).column;
 
   /** Assigned to the person looking at the board. */
   const isMine = (issue: Issue) => Boolean(identity && issue.assignedHuman && (
@@ -390,6 +390,8 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
    */
   const requestIssueStatusChange = (issue: Issue, nextStatus: IssueStatus) => {
     if (issue.status === nextStatus) return;
+    // A build holds this card: its column follows the build, so a hand move would not stick.
+    if (hasActiveBuild(issue)) return;
 
     if (nextStatus === 'agent_running') {
       if (canRunBuilds && !hasActiveBuild(issue) && issue.status !== 'done') setPendingBuildIssueId(issue.id);
@@ -1046,7 +1048,7 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
           /* Jira-like Grouped Status List View (Matching Exact Screenshot) */
           <div className="flex-1 space-y-2.5 overflow-y-auto p-4 sm:px-5 sm:py-4">
             {statusGroups.map(group => {
-              const groupIssues = filteredIssues.filter(i => group.statusMatch(i.status));
+              const groupIssues = filteredIssues.filter(i => group.statusMatch(boardColumnFor(i)));
               const isCollapsed = collapsedSections[group.id] ?? false;
 
               return (

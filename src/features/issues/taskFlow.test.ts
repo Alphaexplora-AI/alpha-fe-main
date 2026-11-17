@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { initialsOf, nextStepFor, suggestSubtasks, taskHandoffContext, taskHandoffMessage, type NextStepInput } from './taskFlow';
+import { initialsOf, nextStepFor, suggestSubtasks, taskHandoffContext, taskHandoffMessage, taskStage, visibleLabels, type NextStepInput } from './taskFlow';
 
 const base: NextStepInput = {
   status: 'todo',
@@ -89,9 +89,50 @@ describe('nextStepFor', () => {
     expect(step.secondary?.action).toBe('request_changes');
   });
 
+  it('points reviewed work with a pull request at merging it, not at a second review', () => {
+    const step = nextStepFor({ ...base, status: 'review', canManageIssues: true, prUrl: 'https://github.com/acme/web/pull/7' });
+    expect(step).toMatchObject({ title: 'Pull request open', primary: { action: 'open_pr' }, secondary: { action: 'mark_done' } });
+  });
+
   it('only offers reopen on done tasks to managers', () => {
     expect(nextStepFor({ ...base, status: 'done' }).secondary?.action).toBe('reopen');
     expect(nextStepFor({ ...base, status: 'done', canManageIssues: false }).secondary).toBeUndefined();
+  });
+});
+
+describe('taskStage', () => {
+  const todo = { status: 'todo' as const };
+
+  it('follows the stored status when no build holds the task', () => {
+    for (const build of [undefined, 'none', 'completed', 'cancelled', 'failed']) {
+      expect(taskStage(todo, build)).toEqual({ column: 'todo', needsYou: false, buildOwned: false });
+    }
+  });
+
+  it('puts a finished build waiting for final review in In review', () => {
+    expect(taskStage(todo, 'awaiting_approval')).toEqual({ column: 'review', needsYou: true, buildOwned: true });
+  });
+
+  it('keeps unfinished builds that wait on a person in Building, flagged', () => {
+    for (const build of ['awaiting_plan_approval', 'paused', 'blocked', 'recovery_required']) {
+      expect(taskStage(todo, build)).toEqual({ column: 'agent_running', needsYou: true, buildOwned: true });
+    }
+  });
+
+  it('shows working builds as Building', () => {
+    for (const build of ['planning', 'executing', 'validating', 'publishing', 'cancelling']) {
+      expect(taskStage({ status: 'in_progress' }, build)).toEqual({ column: 'agent_running', needsYou: false, buildOwned: true });
+    }
+  });
+
+  it('never moves a done task', () => {
+    expect(taskStage({ status: 'done' }, 'awaiting_approval').column).toBe('done');
+  });
+});
+
+describe('visibleLabels', () => {
+  it('hides Alpha bookkeeping labels', () => {
+    expect(visibleLabels(['alpha:chat-build', 'frontend', 'alpha:task-orchestration'])).toEqual(['frontend']);
   });
 });
 

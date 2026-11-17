@@ -78,6 +78,19 @@ describe('task build panel', () => {
     }
     expect(html).not.toContain('Acceptance: (1)');
   });
+
+  it('puts the review decision first and folds the files and details under it', () => {
+    orchestration = build('awaiting_approval');
+    const html = render();
+    expect(html.indexOf('Approve and open pull request')).toBeLessThan(html.indexOf('Changed files (1)'));
+    expect(html.indexOf('Changed files (1)')).toBeLessThan(html.indexOf('Build details'));
+    expect(html).not.toMatch(/<details open=""/);
+  });
+
+  it('opens the build details by itself only while agents are working', () => {
+    orchestration = build('executing');
+    expect(render()).toMatch(/<details open=""[^>]*>s*<summary[^>]*>.*?Build details/s);
+  });
   it('does not count historical accepted attempts as current validation evidence', () => {
     orchestration = build('blocked');
     orchestration.attempts.push({ ...orchestration.attempts[0], id: 'new-failed-attempt', attemptNumber: 2, status: 'failed' });
@@ -104,7 +117,8 @@ describe('task build panel', () => {
       orchestration = build('awaiting_plan_approval');
       const html = render();
       expect(html).not.toContain('Approve plan');
-      expect(html).not.toContain('Build details');
+      // The agent view stays with developers; the folded progress and checklist are for everyone.
+      expect(html).not.toContain('Build details content');
       orchestration = build('awaiting_approval');
       expect(render()).not.toContain('Approve and open pull request');
       expect(render()).not.toContain('Send back');

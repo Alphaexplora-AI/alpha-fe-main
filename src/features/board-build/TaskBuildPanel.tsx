@@ -10,7 +10,7 @@ import { BUILD_STEPS, buildStepFor } from '@/features/chat/buildSteps';
 import { buildAgentNodes } from '@/features/chat/useProjectLiveBuild';
 import { isDesktop } from '@/shared/desktop';
 import { apiService, type IssueBuildStatus } from '@/shared/services/apiService';
-import type { Issue, LiveBuildOrchestrationStatus } from '@/shared/types';
+import type { Issue, LiveBuildOrchestrationStatus, ProjectBuildOrchestration } from '@/shared/types';
 import { changedFiles, requirementEvidence, useBuildConversation, useTaskBuild } from './useTaskBuild';
 import { BuildRequestPanel } from './BuildRequestPanel';
 import { ReviewedRecoveryPanel } from './ReviewedRecoveryPanel';
@@ -49,6 +49,51 @@ const textarea = 'w-full resize-y rounded-md border border-control bg-well px-3 
 
 /** The part of a planner requirement a person reads; acceptance criteria follow it in the stored text. */
 const requirementText = (description: string) => description.split(' Acceptance: ')[0];
+
+type BuildStepId = (typeof BUILD_STEPS)[number]['id'];
+
+function buildStepDone(id: BuildStepId, orchestration: ProjectBuildOrchestration, published: boolean): boolean {
+  const { run, tasks, attempts } = orchestration;
+  if (id === 'plan') return run.status !== 'planning';
+  if (id === 'approve') return attempts.length > 0;
+  if (id === 'build') return tasks.filter(task => task.required).every(task => task.status === 'accepted') && tasks.some(task => task.kind === 'validation' && task.status === 'accepted');
+  return published;
+}
+
+function stepDotClass(done: boolean, current: boolean, attention: boolean): string {
+  if (done) return 'border-link bg-link';
+  if (!current) return 'border-control bg-surface-raised';
+  return attention ? 'border-status-warning bg-surface-raised ring-[3px] ring-status-warning-subtle' : 'border-link bg-surface-raised ring-[3px] ring-selected';
+}
+
+function stepLabelClass(done: boolean, current: boolean): string {
+  if (current) return 'text-content';
+  return done ? 'text-content-secondary' : 'text-content-muted';
+}
+
+/** Plan, approve, build, review, pull request: where the build is, as a row of dots. */
+const BuildProgressTrack: React.FC<{ orchestration: ProjectBuildOrchestration; publications: readonly unknown[]; stepIndex: number; attention: boolean }> = ({ orchestration, publications, stepIndex, attention }) => {
+  const status = orchestration.run.status;
+  const changesCode = orchestration.tasks.some(task => ['database', 'backend', 'frontend', 'mobile'].includes(task.kind));
+  const moving = !['completed', 'cancelled', 'failed'].includes(status);
+  return (
+    <ol aria-label="Build progress" className="flex">
+      {BUILD_STEPS.filter(item => item.id !== 'publish' || changesCode || publications.length > 0).map((item, index) => {
+        const done = buildStepDone(item.id, orchestration, publications.length > 0);
+        const current = moving && index === stepIndex;
+        return (
+          <li key={item.id} aria-current={current ? 'step' : undefined} className="min-w-0 flex-1">
+            <span className="relative flex h-3 w-full items-center">
+              {index < BUILD_STEPS.length - 1 && <span aria-hidden="true" className={`absolute left-3.5 right-[-6px] top-[5.5px] h-px ${done ? 'bg-link' : 'bg-divider'}`} />}
+              <span aria-hidden="true" className={`relative z-[1] h-3 w-3 rounded-full border-[1.5px] ${stepDotClass(done, current, attention)}`} />
+            </span>
+            <span className={`mt-1.5 block truncate text-[11.25px] font-medium ${stepLabelClass(done, current)}`}>{item.label}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+};
 
 /**
  * A task's build, on the task.
@@ -140,30 +185,13 @@ export const TaskBuildPanel: React.FC<TaskBuildPanelProps> = ({ issue, build, ca
       : STATUS_COPY[status] ?? status.replace(/_/g, ' ');
   const publications = run.publications?.length ? run.publications : run.publication ? [run.publication] : [];
   const stoppable = open && !['publishing', 'cancelling'].includes(status);
+  const live = ['planning', 'executing', 'validating', 'publishing'].includes(status);
   const historyMessages = conversation.messages.filter(entry => ['build', 'build_milestone'].includes(entry.messageType ?? ''));
   const questionMessages = conversation.messages.filter(entry => !['build', 'build_milestone'].includes(entry.messageType ?? ''));
 
   return (
     <div className="space-y-5">
       <BuildRequestPanel issue={issue} build={build} onChanged={onBuildChanged} onOpenTask={onOpenTask} />
-      <ol aria-label="Build progress" className="flex">
-        {BUILD_STEPS.filter(item => item.id !== 'publish' || orchestration.tasks.some(task => ['database', 'backend', 'frontend', 'mobile'].includes(task.kind)) || publications.length > 0).map((item, index) => {
-          const done = item.id === 'plan' ? status !== 'planning'
-            : item.id === 'approve' ? orchestration.attempts.length > 0
-              : item.id === 'build' ? orchestration.tasks.filter(task => task.required).every(task => task.status === 'accepted') && orchestration.tasks.some(task => task.kind === 'validation' && task.status === 'accepted')
-                : publications.length > 0;
-          const current = !finished && !['cancelled', 'failed'].includes(status) && index === stepIndex;
-          return (
-            <li key={item.id} aria-current={current ? 'step' : undefined} className="min-w-0 flex-1">
-              <span className="relative flex h-3 w-full items-center">
-                {index < BUILD_STEPS.length - 1 && <span aria-hidden="true" className={`absolute left-3.5 right-[-6px] top-[5.5px] h-px ${done ? 'bg-link' : 'bg-divider'}`} />}
-                <span aria-hidden="true" className={`relative z-[1] h-3 w-3 rounded-full border-[1.5px] ${done ? 'border-link bg-link' : current ? (step.attention ? 'border-status-warning bg-surface-raised ring-[3px] ring-status-warning-subtle' : 'border-link bg-surface-raised ring-[3px] ring-selected') : 'border-control bg-surface-raised'}`} />
-              </span>
-              <span className={`mt-1.5 block truncate text-[11.25px] font-medium ${current ? 'text-content' : done ? 'text-content-secondary' : 'text-content-muted'}`}>{item.label}</span>
-            </li>
-          );
-        })}
-      </ol>
 
       <div role="status" className="space-y-1">
         <p className="text-[13px] font-semibold text-content">{statusText}</p>
@@ -249,15 +277,6 @@ export const TaskBuildPanel: React.FC<TaskBuildPanelProps> = ({ issue, build, ca
 
       {status === 'awaiting_approval' && (
         <section aria-label="Review" className="space-y-3">
-          <h3 className="text-[13px] font-semibold text-content-secondary">Changed files ({files.length})</h3>
-          <ul className="space-y-0.5 font-mono text-[11.5px] text-content-secondary">
-            {files.slice(0, 12).map(file => <li key={file} className="truncate">{file}</li>)}
-            {files.length > 12 && <li className="font-sans text-content-muted">and {files.length - 12} more</li>}
-          </ul>
-          <button type="button" onClick={() => setShowDiff(value => !value)} className="inline-flex items-center gap-1 text-[12.5px] font-medium text-link hover:text-link-hover">
-            <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${showDiff ? 'rotate-180' : ''}`} /> {showDiff ? 'Hide the changes' : 'Show the changes'}
-          </button>
-          {showDiff && <ReviewBody projectId={issue.projectId} orchestration={orchestration} expandedDiff />}
           <div className="flex flex-wrap gap-2">
             {canPublish && (
               <button type="button" disabled={Boolean(busy)} onClick={() => void act('publish', () => apiService.approveOrchestration(issue.projectId, run.id, run.revision))} className={primary}>
@@ -280,6 +299,22 @@ export const TaskBuildPanel: React.FC<TaskBuildPanelProps> = ({ issue, build, ca
               <button type="submit" disabled={!sendBack.trim() || Boolean(busy)} className={primary}>Send back with these changes</button>
             </form>
           )}
+          <details className="group rounded-md border border-divider">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[12.5px] font-medium text-content-secondary">
+              <ChevronDown aria-hidden="true" className="h-3.5 w-3.5 -rotate-90 transition-transform group-open:rotate-0" />
+              Changed files ({files.length})
+            </summary>
+            <div className="space-y-2 border-t border-divider px-3 py-2">
+              <ul className="space-y-0.5 font-mono text-[11.5px] text-content-secondary">
+                {files.slice(0, 12).map(file => <li key={file} className="truncate">{file}</li>)}
+                {files.length > 12 && <li className="font-sans text-content-muted">and {files.length - 12} more</li>}
+              </ul>
+              <button type="button" onClick={() => setShowDiff(value => !value)} className="inline-flex items-center gap-1 text-[12.5px] font-medium text-link hover:text-link-hover">
+                <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${showDiff ? 'rotate-180' : ''}`} /> {showDiff ? 'Hide the changes' : 'Show the changes'}
+              </button>
+              {showDiff && <ReviewBody projectId={issue.projectId} orchestration={orchestration} expandedDiff />}
+            </div>
+          </details>
         </section>
       )}
 
@@ -306,27 +341,6 @@ export const TaskBuildPanel: React.FC<TaskBuildPanelProps> = ({ issue, build, ca
         </button>
       )}
 
-      {orchestration.requirements.length > 0 && status !== 'awaiting_plan_approval' && (
-        <section aria-label="Checklist" className="space-y-2">
-          <h3 className="text-[13px] font-semibold text-content-secondary">Checklist <span className="font-normal tabular-nums text-content-muted">{covered} of {orchestration.requirements.length} with evidence</span></h3>
-          <ul className="space-y-1.5">
-            {orchestration.requirements.map(requirement => {
-              const proof = evidence.get(requirement.id);
-              return (
-                <li key={requirement.id} className="flex gap-2 text-[13px]">
-                  {proof
-                    ? <Check aria-label="Has evidence" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-status-success" />
-                    : <Circle aria-label="No evidence yet" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-muted" />}
-                  <span className="min-w-0">
-                    <span className="text-content-secondary">{requirementText(requirement.description)}</span>
-                    {proof && <span className="mt-0.5 block text-[11.5px] text-content-muted">{proof}</span>}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
 
       {stoppable && canDecide && (
         confirmStop
@@ -342,56 +356,87 @@ export const TaskBuildPanel: React.FC<TaskBuildPanelProps> = ({ issue, build, ca
           : <button type="button" onClick={() => setConfirmStop(true)} className="text-[12.5px] font-medium text-content-muted hover:text-status-danger">Stop this build</button>
       )}
 
-      <section aria-label="Build conversation" className="space-y-2 border-t border-divider pt-4">
-        <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-content-secondary"><MessageSquare aria-hidden="true" className="h-3.5 w-3.5" /> Ask about this build</h3>
-        {conversation.privateToOwner
-          ? <p className="text-[12.5px] text-content-muted">This build's conversation is private to the person who started it.</p>
-          : (
-            <>
-              {questionMessages.length > 0 && (
-                <ol className="max-h-64 space-y-2 overflow-y-auto">
-                  {questionMessages.slice(-8).map(entry => (
-                    <li key={entry.id} className={`rounded-md px-3 py-2 text-[12.5px] ${entry.messageType === 'build_milestone' ? 'border border-divider bg-surface' : entry.senderType === 'user' ? 'bg-surface-high' : 'bg-surface'}`}>
-                      <span className="font-medium text-content">{entry.senderType === 'user' ? 'You' : 'Alpha'}</span>
-                      <p className="mt-0.5 whitespace-pre-wrap text-content-secondary">{entry.content.length > 600 ? `${entry.content.slice(0, 597)}...` : entry.content}</p>
-                    </li>
-                  ))}
-                </ol>
-              )}
-              {historyMessages.length > 0 && <details className="text-[12px] text-content-muted"><summary>Previous build activity</summary><ol className="max-h-56 space-y-2 overflow-auto pt-2">{historyMessages.slice(-8).map(entry => <li key={entry.id}><time>{new Date(entry.timestamp).toLocaleString()}</time><p className="whitespace-pre-wrap">{entry.content.slice(0, 1200)}</p></li>)}</ol></details>}
-              {can('manage_chat') && (
-                <form
-                  className="flex items-end gap-2"
-                  onSubmit={event => {
-                    event.preventDefault();
-                    void conversation.ask(question).then(sent => { if (sent) setQuestion(''); });
-                  }}
-                >
-                  <label htmlFor={`build-question-${issue.id}`} className="sr-only">Question about this build</label>
-                  <textarea id={`build-question-${issue.id}`} rows={1} value={question} onChange={event => setQuestion(event.target.value)} placeholder="Why does the plan change this file?" className={textarea} />
-                  <button type="submit" disabled={!question.trim() || conversation.sending} aria-label="Ask" className={primary}><Send aria-hidden="true" className="h-3.5 w-3.5" /></button>
-                </form>
-              )}
-              {conversation.error && <p role="alert" className="text-[12.5px] text-status-danger">{conversation.error}</p>}
-            </>
-          )}
-      </section>
 
-      {(role === 'dev' || role === 'admin') && snapshot && (
-        <details className="rounded-md border border-divider">
-          <summary className="cursor-pointer px-3 py-2 text-[12.5px] font-medium text-content-secondary">Build details</summary>
-          <div className="flex max-h-[480px] min-h-0 flex-col border-t border-divider">
-            <BuildReviewTab
-              projectId={issue.projectId}
-              build={{ runId: run.id, status, revision: run.revision, repository: run.repository, goal: run.goal, running, canControl: false, agents: buildAgentNodes(snapshot), orchestration }}
-              canStart={false}
-              canApprove={false}
-              busy={false}
-              error={null}
-            />
-          </div>
-        </details>
-      )}
+
+      {/* Progress, evidence and questions support the decision above; they open by themselves only while agents work. */}
+      <details open={live} className="group rounded-md border border-divider">
+        <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[12.5px] font-medium text-content-secondary">
+          <ChevronDown aria-hidden="true" className="h-3.5 w-3.5 -rotate-90 transition-transform group-open:rotate-0" />
+          Build details
+          {orchestration.requirements.length > 0 && status !== 'awaiting_plan_approval' && <span className="font-normal tabular-nums text-content-muted">· checklist {covered} of {orchestration.requirements.length} with evidence</span>}
+        </summary>
+        <div className="space-y-5 border-t border-divider px-3 py-3">
+          <BuildProgressTrack orchestration={orchestration} publications={publications} stepIndex={stepIndex} attention={Boolean(step.attention)} />
+
+          {orchestration.requirements.length > 0 && status !== 'awaiting_plan_approval' && (
+            <section aria-label="Checklist" className="space-y-2">
+              <h3 className="text-[13px] font-semibold text-content-secondary">Checklist <span className="font-normal tabular-nums text-content-muted">{covered} of {orchestration.requirements.length} with evidence</span></h3>
+              <ul className="space-y-1.5">
+                {orchestration.requirements.map(requirement => {
+                  const proof = evidence.get(requirement.id);
+                  return (
+                    <li key={requirement.id} className="flex gap-2 text-[13px]">
+                      {proof
+                        ? <Check aria-label="Has evidence" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-status-success" />
+                        : <Circle aria-label="No evidence yet" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-muted" />}
+                      <span className="min-w-0">
+                        <span className="text-content-secondary">{requirementText(requirement.description)}</span>
+                        {proof && <span className="mt-0.5 block text-[11.5px] text-content-muted">{proof}</span>}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
+          <section aria-label="Build conversation" className="space-y-2">
+            <h3 className="flex items-center gap-1.5 text-[13px] font-semibold text-content-secondary"><MessageSquare aria-hidden="true" className="h-3.5 w-3.5" /> Ask about this build</h3>
+            {conversation.privateToOwner
+              ? <p className="text-[12.5px] text-content-muted">This build's conversation is private to the person who started it.</p>
+              : (
+                <>
+                  {questionMessages.length > 0 && (
+                    <ol className="max-h-64 space-y-2 overflow-y-auto">
+                      {questionMessages.slice(-8).map(entry => (
+                        <li key={entry.id} className={`rounded-md px-3 py-2 text-[12.5px] ${entry.messageType === 'build_milestone' ? 'border border-divider bg-surface' : entry.senderType === 'user' ? 'bg-surface-high' : 'bg-surface'}`}>
+                          <span className="font-medium text-content">{entry.senderType === 'user' ? 'You' : 'Alpha'}</span>
+                          <p className="mt-0.5 whitespace-pre-wrap text-content-secondary">{entry.content.length > 600 ? `${entry.content.slice(0, 597)}...` : entry.content}</p>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                  {historyMessages.length > 0 && <details className="text-[12px] text-content-muted"><summary>Previous build activity</summary><ol className="max-h-56 space-y-2 overflow-auto pt-2">{historyMessages.slice(-8).map(entry => <li key={entry.id}><time>{new Date(entry.timestamp).toLocaleString()}</time><p className="whitespace-pre-wrap">{entry.content.slice(0, 1200)}</p></li>)}</ol></details>}
+                  {can('manage_chat') && (
+                    <form
+                      className="flex items-end gap-2"
+                      onSubmit={event => {
+                        event.preventDefault();
+                        void conversation.ask(question).then(sent => { if (sent) setQuestion(''); });
+                      }}
+                    >
+                      <label htmlFor={`build-question-${issue.id}`} className="sr-only">Question about this build</label>
+                      <textarea id={`build-question-${issue.id}`} rows={1} value={question} onChange={event => setQuestion(event.target.value)} placeholder="Why does the plan change this file?" className={textarea} />
+                      <button type="submit" disabled={!question.trim() || conversation.sending} aria-label="Ask" className={primary}><Send aria-hidden="true" className="h-3.5 w-3.5" /></button>
+                    </form>
+                  )}
+                  {conversation.error && <p role="alert" className="text-[12.5px] text-status-danger">{conversation.error}</p>}
+                </>
+              )}
+          </section>
+          {(role === 'dev' || role === 'admin') && snapshot && (
+            <div className="flex max-h-[480px] min-h-0 flex-col rounded-md border border-divider">
+                  <BuildReviewTab
+                    projectId={issue.projectId}
+                    build={{ runId: run.id, status, revision: run.revision, repository: run.repository, goal: run.goal, running, canControl: false, agents: buildAgentNodes(snapshot), orchestration }}
+                    canStart={false}
+                    canApprove={false}
+                    busy={false}
+                    error={null}
+                  />
+            </div>
+          )}
+        </div>
+      </details>
     </div>
   );
 };
