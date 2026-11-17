@@ -244,12 +244,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           aria-expanded={workspaceMenuOpen}
         >
           <span className={`flex min-w-0 items-center ${compact ? '' : 'gap-2'}`}>
-            <span className="flex h-[28px] w-[28px] flex-shrink-0 items-center justify-center rounded-md bg-action dark:bg-surface-raised ring-1 ring-inset ring-content/[0.08]">
+            <span className="flex h-[28px] w-[28px] flex-shrink-0 items-center justify-center">
+              {/* The mark is white on transparent: black on light themes, white on dark ones. */}
               <img
                 src={alphaMarkUrl}
                 alt=""
                 aria-hidden="true"
-                className="h-[24px] w-[20px] object-contain"
+                className="h-[24px] w-[20px] object-contain invert dark:invert-0"
               />
             </span>
             <span
