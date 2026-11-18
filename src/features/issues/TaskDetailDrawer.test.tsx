@@ -48,6 +48,14 @@ const render = (status: Issue['status'], handOff: boolean, canStartBuild = true,
 };
 
 describe('Task details', () => {
+  it('sits beside the task list instead of covering it, overlaying only on narrow windows', () => {
+    const aside = render('todo', false).match(/<aside[^>]*class="([^"]*)"/)?.[1].split(' ') ?? [];
+    expect(aside).toEqual(expect.arrayContaining(['relative', 'h-full', 'shrink-0']));
+    // Every overlay class is limited to narrow windows.
+    expect(aside.filter(name => /^(absolute|fixed|shadow-2xl|z-\d+)$/.test(name))).toEqual([]);
+    expect(aside).toEqual(expect.arrayContaining(['max-md:absolute', 'max-md:w-full']));
+  });
+
   it('shows status as a details row, with Overview and Build tabs in the desktop app', () => {
     const html = render('todo', false);
     for (const shown of ['WEB-19', 'Status', 'Backlog', 'In review', 'Priority', 'Assignee', 'Overview', 'Build', 'Comments', 'No comments yet.', 'Archive task WEB-19', '1 of 2', 'Leave a comment']) {

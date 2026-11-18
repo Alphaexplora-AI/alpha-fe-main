@@ -230,7 +230,8 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       aria-modal="false"
       aria-labelledby={`${ids}-title`}
       onKeyDown={event => { if (event.key === 'Escape') onClose(); }}
-      className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[640px] flex-col border-l border-divider bg-surface-raised text-sm shadow-2xl animate-slide-up"
+      // Docked beside the list, like the Alpha panel, so it never covers the tasks; it overlays only on narrow windows.
+      className="relative flex h-full w-[clamp(380px,42%,640px)] shrink-0 flex-col border-l border-divider bg-surface-raised text-sm max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-30 max-md:w-full max-md:shadow-2xl"
     >
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-divider pl-5 pr-2 text-[12.5px] text-content-muted">
         <span className="font-mono text-xs text-content-secondary">{issue.identifier}</span>
