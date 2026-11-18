@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, ChevronDown, MessageSquare } from 'lucide-react';
+import { SkeletonList } from '@/shared/components/ui/skeleton';
 import { useApp } from '@/app/AppContext';
 import type { RunningItem, RunningWork } from '@/shared/services/apiService';
 import { elapsedLabel, runningLabel, useRunningWork, type RunningWorkState } from './runningWork';
@@ -41,7 +42,7 @@ function ItemRow({ item, onOpen }: { item: RunningItem; onOpen: (item: RunningIt
 
 /** The dropdown's body for one refresh of running work. Exported for tests. */
 export function RunningList({ state, onOpen }: { state: RunningWorkState; onOpen: (item: RunningItem) => void }) {
-  if (state.status === 'loading') return <p className="px-3 py-3 text-[12.5px] text-content-muted">Checking what is running…</p>;
+  if (state.status === 'loading') return <SkeletonList label="Checking what is running" rows={2} avatar={false} className="px-3 py-1" />;
   if (state.status === 'unavailable') return <p className="px-3 py-3 text-[12.5px] text-content-muted">The local engine did not answer, so running work cannot be shown.</p>;
   const { running, interrupted } = state.work;
   if (!running.length && !interrupted.length) return <p className="px-3 py-3 text-[12.5px] text-content-muted">Nothing is running on this computer.</p>;

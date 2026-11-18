@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { MessageSquare, Pin, Search } from 'lucide-react';
+import { SkeletonList } from '@/shared/components/ui/skeleton';
 import { useApp, useTabSessionState } from '@/app/AppContext';
 import { byChatActivity, chatMatches } from './chatDirectory';
 import { projectChatStorageKey, useProjectChatPins } from './useProjectChatPins';
@@ -40,7 +41,7 @@ export function ChatHistory() {
           <Pin className="h-3.5 w-3.5" aria-hidden="true" />{pinned.includes(projectId) ? 'Unpin project' : 'Pin project'}
         </button>}
       </div>
-      {chatThreadsLoadState === 'loading' && <p role="status" className="text-sm text-content-muted">Loading chats…</p>}
+      {chatThreadsLoadState === 'loading' && <SkeletonList label="Loading chats" rows={5} avatar={false} />}
       {['stale', 'error'].includes(chatThreadsLoadState) && <p role="status" className="mb-3 text-sm text-status-warning">
         {chatThreadsLoadState === 'stale' ? 'Showing saved chats. ' : 'Chats unavailable. '}
         <button type="button" className="underline" onClick={() => void retryChatThreads()}>Retry</button>

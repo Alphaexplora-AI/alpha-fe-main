@@ -4,6 +4,7 @@ import type {
   ClientTicketDetail, ClientTicketQueue, ClientTicketQueueOptions,
 } from './clientApi';
 import { DEMO_TICKETS } from './ticketingPreviewFixtures';
+import { withPreviewLatency } from './previewLatency';
 
 const workspace = 'client-ui-sample-workspace';
 const terminal = (status: string) => ['closed', 'declined', 'cancelled'].includes(status);
@@ -114,11 +115,15 @@ const methods: Partial<typeof clientTicketApi> = {
   },
 };
 
+// Sign-in and workspace reads stay instant so a slowed preview still shows the portal shell.
+const SHELL_READS = new Set(['getSession', 'getWorkflowCapabilities', 'listWorkspaces']);
+
 /** Dev-only read transport. Every unimplemented call refuses without fetch. */
 export const clientPreviewApi = new Proxy(clientTicketApi, {
   get(_target, property) {
     if (typeof property === 'string' && Object.prototype.hasOwnProperty.call(methods, property)) {
-      return methods[property as keyof typeof methods];
+      const read = methods[property as keyof typeof methods] as (...args: never[]) => unknown;
+      return SHELL_READS.has(property) ? read : withPreviewLatency(read);
     }
     return async () => { throw new ClientTicketApiError(503, 'This action is disabled while inspecting sample tickets.'); };
   },

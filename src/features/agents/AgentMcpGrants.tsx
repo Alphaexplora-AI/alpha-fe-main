@@ -1,5 +1,6 @@
+import { LoadingRows } from '@/shared/components/ui/skeleton';
 import { useEffect, useState } from 'react';
-import { Loader2, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 
 import { apiService } from '@/shared/services/apiService';
 import { Agent, McpServer } from '@/shared/types';
@@ -69,10 +70,7 @@ export function AgentMcpGrants({ agent, onChange, onOpenFile, readOnly = false }
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-[11px] text-content-muted py-2">
-        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-        Reading catalog...
-      </div>
+      <LoadingRows label="Reading the tool catalog" rows={2} className="py-1" />
     );
   }
 

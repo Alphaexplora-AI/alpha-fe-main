@@ -1,3 +1,4 @@
+import { Skeleton, SkeletonRegion } from '@/shared/components/ui/skeleton';
 import React, { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Maximize2, Minimize2, RotateCcw } from 'lucide-react';
@@ -629,7 +630,7 @@ export const OrchestratorFlow: React.FC<OrchestratorFlowProps> = ({ calls, agent
   // One 3D view, shown inline or in the enlarged layer; only one is mounted at a time.
   const sceneView = <>
     <SceneBoundary onError={() => setSceneFailed(true)}>
-      <Suspense fallback={<div role="status" className="absolute inset-0 grid place-items-center text-[11px] text-[rgba(var(--scene-labelForeground),0.65)]">Loading the 3D view…</div>}>
+      <Suspense fallback={<SkeletonRegion label="Loading the 3D view" className="absolute inset-0 grid p-4"><Skeleton className="h-full w-full rounded-xl opacity-60" /></SkeletonRegion>}>
         <OrchestratorScene3D
           agents={sceneAgents}
           links={sceneLinks}

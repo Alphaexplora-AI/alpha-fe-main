@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowUpRight, FolderKanban, RefreshCw, Search, ShieldCheck, 
 
 import { useApp, useTabSessionState } from '@/app/AppContext';
 import { ApiRequestError } from '@/shared/services/apiService';
-import { LoadingRows } from '@/shared/components/ui/skeleton';
+import { SkeletonTable } from '@/shared/components/ui/skeleton';
 import { pmTicketApi, pmTicketDocumentsApi, type PmCentralIntakeItem, type PmClientConversation, type PmClientSummary, type PmTicketQueueItem } from './pmApi';
 import { PmTicketsView, type WorkflowActions } from './PmTicketsView';
 import { pmTicketsIntakeEnabled, usePmWorkflowActions } from './PmTicketsPage';
@@ -341,7 +341,7 @@ export function PmClientsView({ clients, error, loading, search, onSearch, selec
     <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
       {!error && summary && <p className="mb-2 text-xs text-content-secondary">{summary}</p>}
       {error ? <p role="alert" className="rounded-md border border-status-danger-border bg-status-danger-subtle px-3 py-2 text-[13px] text-status-danger">{error}</p>
-        : loading && !clients ? <LoadingRows label="Loading clients" layout="table" rows={4} />
+        : loading && !clients ? <SkeletonTable label="Loading clients" columns={4} rows={5} header avatar />
         : clients && clients.length === 0 ? <div className="flex flex-col items-center gap-2 py-16 text-center">
           <Users className="h-6 w-6 text-content-muted" aria-hidden="true" />
           <p className="text-[13px] font-medium text-content">No clients yet</p>

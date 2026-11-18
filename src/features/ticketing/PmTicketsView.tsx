@@ -1,4 +1,5 @@
 import { LoadingRows } from '@/shared/components/ui/skeleton';
+import { TicketDetailSkeleton, TicketQueueSkeleton } from './TicketingSkeletons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle, ArrowLeft, ArrowUpRight, Check, ChevronDown, CircleDot, FileText, Info,
@@ -1016,7 +1017,7 @@ export function PmTicketsView({ api = pmTicketApi, documentsApi = pmTicketDocume
         </div>
         <div className="pm-tickets__queue-scroll">
           {!intakeEnabled ? <EmptyPanel title="Live tickets are not connected yet" detail="No ticket data is loaded while ticketing is disabled." />
-            : queuePending ? <LoadingRows label="Loading tickets" layout="table" rows={5} className="px-4" />
+            : queuePending ? <TicketQueueSkeleton label="Loading tickets" className="px-4" />
             : queue && visibleQueueItems.length > 0 ? <PmTicketQueueList items={visibleQueueItems} selectedId={selectedId}
               disabled={Boolean(pending)}
               onSelect={ticketId => { historyGeneration.current += 1; setHistoryLoading(false); setSelectedId(ticketId); setPanel('conversation'); setMessageAction('reply'); setDrafts(current => ({ ...current, conversation: '' })); setWriteError(''); }} />
@@ -1032,7 +1033,7 @@ export function PmTicketsView({ api = pmTicketApi, documentsApi = pmTicketDocume
       <div role="region" aria-label="Ticket detail panel" className={`pm-tickets__detail${selectedId ? ' pm-tickets__detail--selected' : ''}`}>
         {!intakeEnabled ? <EmptyPanel title="Ticketing is coming soon" detail="Ticket details and conversations will be available when ticketing is connected." />
           : !selectedId || !selectedQueueItem ? <EmptyPanel title={queueError ? 'Ticket queue unavailable' : 'Select a ticket'} detail={queueError ? 'No ticket data is shown when the service cannot be reached.' : 'Choose a request from the queue to review its details and conversation.'} />
-          : (detail?.id !== selectedId && (detailLoading || !detailError)) ? <LoadingRows label="Loading ticket" layout="detail" className="p-5" />
+          : (detail?.id !== selectedId && (detailLoading || !detailError)) ? <TicketDetailSkeleton label="Loading ticket" />
             : detailError && detail?.id !== selectedId ? <div role="alert" className="m-4 rounded-lg border border-status-danger-border bg-status-danger-subtle p-4 text-xs text-status-danger">{detailError}</div>
               : detail && selectedQueueItem && <div className="pm-tickets__detail-shell">
                 {detailError && <div role="alert" className="pm-tickets__error">{detailError}</div>}

@@ -53,7 +53,7 @@ export function ClientOverviewPage({ clientName, requests, projects, requestsLoa
     <section aria-labelledby="client-attention-title" aria-busy={requestsLoading && !requests}>
       <h2 id="client-attention-title" className="sr-only">Needs you</h2>
       {requestsError && <p role="alert" className="client-project-error">{requestsError}</p>}
-      {!requests && requestsLoading ? <div className="client-hero"><LoadingRows label="Loading requests needing attention" layout="detail" rows={1} /></div>
+      {!requests && requestsLoading ? <div className="client-hero"><LoadingRows label="Loading requests needing attention" layout="detail" rows={1} className="w-full" /></div>
         : !requests ? null
         : attention.length ? <div className="client-hero is-attention">
           <div className="client-hero-head">

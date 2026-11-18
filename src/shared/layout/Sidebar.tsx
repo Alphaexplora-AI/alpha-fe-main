@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
+import { LoadingRows } from '@/shared/components/ui/skeleton';
 import alphaMarkUrl from '@/assets/alpha-mark.png';
 import { navIcon, navLabel, sectionsFor } from '@/config/navigation';
 import { aiFeaturesEnabled } from '@/config/features';
@@ -273,7 +274,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           <div className="px-2 py-1 text-xs font-medium text-content-muted">Workspaces</div>
           {workspaceLoading && workspaces.length === 0 ? (
-            <div className="px-3 py-3 text-xs text-content-muted">Loading workspaces…</div>
+            <LoadingRows label="Loading workspaces" rows={2} className="px-2" />
           ) : (
             <div className="space-y-0.5">
               {workspaces.map(workspace => (

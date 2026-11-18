@@ -1,3 +1,4 @@
+import { TicketQueueSkeleton } from './TicketingSkeletons';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { FlaskConical } from 'lucide-react';
 import { useApp, useTabSessionState } from '@/app/AppContext';
@@ -57,7 +58,7 @@ export function PmTicketsPage() {
     </div>}
     <div className="pm-ticket-page__content">
       {samples && SampleTickets
-        ? <Suspense fallback={<p role="status" className="p-6 text-xs text-content-secondary">Loading sample tickets…</p>}><SampleTickets /></Suspense>
+        ? <Suspense fallback={<TicketQueueSkeleton label="Loading sample tickets" className="p-6" />}><SampleTickets /></Suspense>
         : <PmTicketsView key={activeWorkspace?.id ?? 'no-workspace'} intakeEnabled={intakeEnabled} workflowActions={workflowActions} communicationEnabled onOpenClient={openClient} />}
     </div>
   </div>;

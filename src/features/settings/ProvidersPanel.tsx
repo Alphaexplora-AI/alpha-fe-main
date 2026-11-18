@@ -1,3 +1,4 @@
+import { LoadingRows, SkeletonText } from '@/shared/components/ui/skeleton';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Check, CircleAlert, Copy, ExternalLink, RefreshCw } from 'lucide-react';
 import { useApp } from '@/app/AppContext';
@@ -170,7 +171,7 @@ const ProvidersPanelContent: React.FC = () => {
               <span className={`h-3.5 w-3.5 shrink-0 rounded-full border ${active ? 'border-action bg-action ring-2 ring-action/20' : 'border-control'}`} aria-hidden="true" />
             </Button>;
           })}
-          {workspaceLoading && !runtimes.length && <div className="px-4 py-8 text-center text-xs text-content-muted">Loading providers…</div>}
+          {workspaceLoading && !runtimes.length && <LoadingRows label="Loading providers" rows={4} className="px-4" />}
           {!workspaceLoading && !filtered.length && <div className="px-4 py-8 text-center text-xs text-content-muted">{runtimes.length ? 'No providers match this search.' : 'No providers detected yet.'}</div>}
         </div>
       </Card>
@@ -230,7 +231,7 @@ const ProvidersPanelContent: React.FC = () => {
               <RefreshCw className={`h-3.5 w-3.5 ${limitsRefreshing ? 'animate-spin' : ''}`} />Refresh limits
             </Button>
           </div>
-          {limitsLoading && !providerLimits ? <p className="text-xs text-content-muted">Checking provider quota support…</p> : selectedLimit ? <div className="space-y-3 rounded-lg border border-divider bg-surface-raised/40 p-3">
+          {limitsLoading && !providerLimits ? <SkeletonText label="Checking provider quota support" lines={3} className="rounded-lg border border-divider p-3" /> : selectedLimit ? <div className="space-y-3 rounded-lg border border-divider bg-surface-raised/40 p-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <p className="text-xs font-medium text-content">{selectedLimit.name}{selectedLimit.plan ? ` · ${selectedLimit.plan}` : ''}</p>

@@ -1,5 +1,6 @@
+import { LoadingRows } from '@/shared/components/ui/skeleton';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, FileCode2, LoaderCircle, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileCode2, RefreshCw } from 'lucide-react';
 
 import { apiService } from '@/shared/services/apiService';
 import type { LiveBuildChanges } from '@/shared/types';
@@ -92,7 +93,7 @@ export const LiveChangesView: React.FC<{
     setOpen(current => { const next = new Set(current); if (next.has(file)) next.delete(file); else next.add(file); return next; });
   };
 
-  if (!changes && loading) return <p role="status" className="flex items-center gap-2 text-xs text-content-muted"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />Reading the changes…</p>;
+  if (!changes && loading) return <LoadingRows label="Reading the changes" layout="code" rows={5} />;
   if (error && !changes) return <p role="alert" className="text-xs text-status-danger">{error}</p>;
 
   return <div className="space-y-3">

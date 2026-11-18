@@ -1,3 +1,4 @@
+import { Skeleton, SkeletonRegion } from '@/shared/components/ui/skeleton';
 import React, { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Check, Download, FolderInput, FolderMinus, GitBranch, Loader2, Monitor, RefreshCw } from 'lucide-react';
 
@@ -154,7 +155,7 @@ export const RepoCheckoutLine: React.FC<{
   return (
     <div className="space-y-1.5 border-t border-divider px-2.5 pb-2 pt-1.5 font-sans text-[11px]">
       {checkouts.loading && !checkout ? (
-        <span className="text-content-muted">Checking this machine…</span>
+        <SkeletonRegion label="Checking this machine"><Skeleton className="h-2.5 w-40" /></SkeletonRegion>
       ) : here && checkout ? (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           {status?.exists === false ? (

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AlertCircle, ArrowLeft, CheckCircle2, Inbox, Mail, MessageSquare, PanelLeftOpen, RefreshCw, Search, Send, UserRound, XCircle } from 'lucide-react';
-import { Skeleton } from '@/shared/components/ui/skeleton';
+import { Skeleton, SkeletonRegion } from '@/shared/components/ui/skeleton';
 import { ApiRequestError } from '@/shared/services/apiService';
 import { pmTicketApi, type PmCentralIntakeItem } from './pmApi';
 import { secondary } from './ticketUi';
@@ -254,11 +254,11 @@ export function PmCentralIntakeInbox({ workspaceName, workspaceId, workspaceCanR
     </button>)}
   </div>;
 
-  const loadingRows = <div role="status" aria-label="Loading inquiries" className="pm-inquiries__skeleton-list">
+  const loadingRows = <SkeletonRegion label="Loading inquiries" className="pm-inquiries__skeleton-list">
     {Array.from({ length: 4 }, (_, index) => <div key={index} className="pm-inquiries__skeleton-row">
       <Skeleton className="h-3 w-2/5" /><Skeleton className="h-2.5 w-1/4" /><Skeleton className="h-2.5 w-1/5" />
     </div>)}
-  </div>;
+  </SkeletonRegion>;
 
   return <section className={`pm-inquiries${selected ? ' pm-inquiries--selected' : ''}${navigationCollapsed ? ' is-navigation-collapsed' : ''}`} aria-label="Shared PM intake inbox">
     <p className="sr-only">Review new client inquiries and project proposals, then route accepted items into the selected workspace.{workspaceName ? ` Accept destination: ${workspaceName}.` : ''}</p>
