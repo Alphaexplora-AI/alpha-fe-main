@@ -46,6 +46,7 @@ import {
   normalizeSettings
 } from '@/data/defaults';
 import { apiService, normalizeGitHubRepo, normalizeSkill, onWorkspaceRefused, setActiveWorkspaceId } from '@/shared/services/apiService';
+import { chatSendFailureText } from '@/features/chat/chatSendFailure';
 import { applyChatReplies, mergeLoadedTranscript, mergeThreadsWithCachedMessages } from './chatThreadHydration';
 import { createBoardSyncCoordinator } from './boardSyncCoordinator';
 import { runnerSocket } from '@/shared/services/runnerSocket';
@@ -3500,10 +3501,10 @@ ${e.detail}`;
       setChatMessages(prev => applyChatReplies(prev, streamingMsgId, replies));
     } catch (err: any) {
       if (activeWorkspaceRef.current !== sendWorkspaceId) return;
-      console.warn('Real AI chat service unavailable, falling back to local persona:', err);
+      console.warn('Chat message was not delivered:', err);
 
       /**
-       * Say the daemon is unreachable, rather than answering for it.
+       * Say why the message was not delivered, rather than answering for it.
        *
        * This used to reply "[Agent · model]: I have received your request …
        * Backend connection established." — a fabricated success, in an agent's
@@ -3515,13 +3516,8 @@ ${e.detail}`;
         senderType: 'system',
         senderName: 'Alpha',
         senderAvatar: undefined,
-        content: [
-          'I could not reach the Alpha daemon, so nobody has seen this message yet.',
-          '',
-          `Reason: ${err?.message ?? 'the request failed'}`,
-          '',
-          'Check that the backend is running, then send it again.'
-        ].join('\n'),
+        // Unreachable, refused and failed messages each say which one it was.
+        content: chatSendFailureText(err),
         isStreaming: false,
         thinkingProcess: undefined,
         toolsExecuted: []
