@@ -60,13 +60,14 @@ export function ProjectChatSidebar({ onNavigate, storageKey }: { onNavigate: () 
           <span className="min-w-0 flex-1 truncate">{thread.title}</span>
           {projectName && <span className="sidebar-detail max-w-[40%] truncate text-[11px] text-content-muted">{projectName}</span>}
         </button>
-        {projectName === undefined && <DropdownMenu modal={false}>
+        {/* Every row, Recent included: a chat with no project appears only under Recent, so it needs its menu there. */}
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild><button type="button" aria-label={'Options for ' + thread.title} className={iconButton}><MoreHorizontal className="h-3.5 w-3.5" /></button></DropdownMenuTrigger>
           <DropdownMenuContent side="right" align="start" data-sidebar-overlay="">
             {isDesktop && <DropdownMenuItem onSelect={() => setMemoryThreadId(thread.id)}>Session memory</DropdownMenuItem>}
             <DropdownMenuItem onSelect={() => setThreadPendingDelete(thread)} className="text-status-danger">Delete chat</DropdownMenuItem>
           </DropdownMenuContent>
-        </DropdownMenu>}
+        </DropdownMenu>
       </div> };
   };
 
