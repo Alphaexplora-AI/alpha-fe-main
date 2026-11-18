@@ -11,7 +11,6 @@ import { ACTIVE_BUILD_STATUSES, BuildChip } from './BuildChip';
 import { BoardAttentionBanner, boardAttention } from './BoardAttentionBanner';
 import { ArchivedCardsPanel } from './ArchivedCardsPanel';
 import { useBoardAgentChanges } from '@/features/board-agent/useBoardAgentChanges';
-import { AgentActivityRail } from '@/features/board-agent/AgentActivityRail';
 import { cardMarks, ghostCards } from '@/features/board-agent/agentChanges';
 import { isEpic } from '@/features/board-build/epic';
 import { BoardAlphaPanel } from '@/features/board-build/BoardAlphaPanel';
@@ -153,7 +152,6 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
   const [quickAddStatus, setQuickAddStatus] = useState<IssueStatus | null>(null);
   const [quickAddTitle, setQuickAddTitle] = useTabSessionState<string>(`${sessionPrefix}.quickAddTitle`, '');
   const [showArchived, setShowArchived] = useState(false);
-  const [showAgentActivity, setShowAgentActivity] = useState(false);
   // True while the Manager Agent is answering in the board panel: read its changes every 2 seconds.
   const [agentWorking, setAgentWorking] = useState(false);
   const agentBoard = useBoardAgentChanges(isDesktop && selectedProject !== 'all' ? selectedProject : null, {
@@ -217,7 +215,7 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
   const canQuickBuild = (issue: Issue) => isDesktop && issue.status === 'todo' && isMine(issue) && canStartBuild(issue);
 
   /** The developer's Alpha panel. Only people who run agents get it; PMs plan with New task. */
-  // Agents are for developers only; others see what agents did in Agent activity.
+  // Agents are for developers only. What they changed shows on the cards, in each task and in this panel.
   const canUseAlpha = isDesktop && role === 'dev' && canRunBuilds && can('manage_chat') && selectedProject !== 'all';
   const [alphaOpen, setAlphaOpen] = useTabSessionState<boolean>(`${sessionPrefix}.alphaPanel`, false);
 
@@ -649,6 +647,9 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 <span>Alpha</span>
+                {waitingCount > 0 && (
+                  <span className="rounded-full bg-status-warning-subtle px-1.5 text-[10px] font-semibold text-status-warning" aria-label={`${waitingCount} waiting for confirmation`}>{waitingCount}</span>
+                )}
               </button>
             )}
             {/* What is running is in the top bar on every page; this only flags stale build data. */}
@@ -747,22 +748,6 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
               </button>
             )}
 
-            {/* New Task Button */}
-            {isDesktop && selectedProject !== 'all' && (
-              <button
-                type="button"
-                onClick={() => setShowAgentActivity(open => !open)}
-                aria-pressed={showAgentActivity}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-divider text-content-secondary hover:text-content hover:bg-surface-high font-medium text-xs transition-colors"
-              >
-                <Bot className="w-3.5 h-3.5" aria-hidden="true" />
-                <span className="hidden sm:inline">Agent activity</span>
-                {waitingCount > 0 && (
-                  <span className="rounded-full bg-status-warning-subtle px-1.5 text-[10px] font-semibold text-status-warning" aria-label={`${waitingCount} waiting for confirmation`}>{waitingCount}</span>
-                )}
-              </button>
-            )}
-
             <button
               type="button"
               onClick={() => setShowArchived(open => !open)}
@@ -802,18 +787,6 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
             canManageIssues={canManageIssues}
             onRestore={restoreIssue}
             onClose={() => setShowArchived(false)}
-          />
-        )}
-        {showAgentActivity && selectedProject !== 'all' && (
-          <AgentActivityRail
-            projectId={selectedProject}
-            changes={agentBoard.changes}
-            login={identity?.login}
-            busyId={agentBoard.busyId}
-            error={agentBoard.error}
-            onDecide={(id, action) => void agentBoard.decide(id, action)}
-            onOpenIssue={setSelectedIssueId}
-            onClose={() => setShowAgentActivity(false)}
           />
         )}
         {workspaceLoading && !issues.some(issue => !lockedProjectId || issue.projectId === lockedProjectId) ? (
@@ -1202,7 +1175,8 @@ export const IssuesView: React.FC<IssuesViewProps> = ({
               // The turn ended: read what it changed now rather than at the next poll.
               if (!working) { void agentBoard.reload(); void refreshBoardState(); }
             }}
-            waiting={agentBoard.changes.filter(change => change.status === 'held')}
+            changes={agentBoard.changes}
+            changesError={agentBoard.error}
             login={identity?.login}
             decidingId={agentBoard.busyId}
             onDecide={(id, action) => void agentBoard.decide(id, action)}
