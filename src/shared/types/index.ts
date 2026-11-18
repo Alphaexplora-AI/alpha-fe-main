@@ -1557,15 +1557,6 @@ export interface BoardAgentChange {
   decidedBy?: string;
 }
 
-export interface BoardAssistantSettings {
-  projectId: string;
-  enabled: boolean;
-  /** Agents are for developers only. */
-  canUse: boolean;
-  /** Admins and project managers can switch the assistant off. */
-  canChange: boolean;
-}
-
 export type SkillCategory = 
   | 'File Operations' 
   | 'Browser & Web' 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { Issue } from '@/shared/types';
+import type { BoardAgentChange, Issue } from '@/shared/types';
 
 vi.hoisted(() => { (globalThis as { window?: unknown }).window ??= globalThis; });
 vi.mock('@/app/AppContext', () => ({ useApp: () => ({ createIssue: vi.fn() }) }));
@@ -49,5 +49,34 @@ describe('board prompting scope', () => {
       scopeIssueIds: ['i0', 'i1']
     });
     expect(askRequest('task-ask-1', 'project', 'How is the board?', [], '')).toMatchObject({ content: 'How is the board?', scopeIssueIds: [] });
+  });
+});
+
+describe('agent changes in the Alpha panel', () => {
+  const change = (id: string, status: BoardAgentChange['status'], summary: string): BoardAgentChange => ({
+    id, projectId: 'project', issueId: 'i0', runId: 'run', agentName: 'Manager Agent', actorUserId: 'u1', actorLogin: 'dev1',
+    action: 'move', status, summary, input: {}, createdAt: new Date().toISOString()
+  });
+  const render = (changes: BoardAgentChange[], changesError?: string) => renderToStaticMarkup(
+    <BoardAlphaPanel projectId="project" issues={[]} columns={[{ id: 'todo', title: 'Todo' }]} columnFor={() => 'todo'}
+      canStartBuild={() => false} onStartBuild={vi.fn()} onOpenIssue={vi.fn()} onClose={vi.fn()}
+      changes={changes} changesError={changesError} login="dev1" onDecide={vi.fn()} />);
+
+  it('keeps held changes in the conversation and the rest, with Undo, under Recent board changes', () => {
+    const html = render([change('held-1', 'held', 'Archive CAP-1'), change('done-1', 'applied', 'Moved CAP-2 to Review')]);
+    expect(html).toContain('Waiting for you to confirm');
+    expect(html).toContain('Confirm');
+    expect(html).toContain('Recent board changes (1)');
+    expect(html).toContain('Moved CAP-2 to Review');
+    expect(html).toContain('Undo');
+    // The history starts closed.
+    expect(html).not.toMatch(/<details[^>]*open/);
+  });
+
+  it('shows neither section when agents changed nothing, and says why the log is missing', () => {
+    const html = render([], 'The local engine did not answer.');
+    expect(html).not.toContain('Waiting for you to confirm');
+    expect(html).not.toContain('Recent board changes');
+    expect(html).toContain('The local engine did not answer.');
   });
 });

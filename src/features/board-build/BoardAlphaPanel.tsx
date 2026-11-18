@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, ListPlus, Play, Send, Sparkles } from 'lucide-react';
+import { Bot, ChevronRight, ListPlus, Play, Send, Sparkles } from 'lucide-react';
 import { useApp } from '@/app/AppContext';
 import { ChatSidePanel } from '@/features/chat/ChatSidePanel';
 import { MessageMarkdown } from '@/features/chat/MessageMarkdown';
@@ -58,8 +58,10 @@ interface BoardAlphaPanelProps {
   onClose: () => void;
   /** Told when the Manager Agent starts and stops working, so the board reads its changes sooner. */
   onWorkingChange?: (working: boolean) => void;
-  /** Agent changes waiting for this developer to confirm. */
-  waiting?: BoardAgentChange[];
+  /** What agents did and asked to do on this board, newest first. Held ones wait for confirmation. */
+  changes?: BoardAgentChange[];
+  /** Why the change log could not be read, or a confirm, reject or undo failed. */
+  changesError?: string | null;
   login?: string;
   decidingId?: string | null;
   onDecide?: (id: string, action: 'approve' | 'reject' | 'undo') => void;
@@ -77,8 +79,10 @@ interface BoardAlphaPanelProps {
  */
 export const BoardAlphaPanel: React.FC<BoardAlphaPanelProps> = ({
   projectId, projectKey, issues, columns, columnFor, canStartBuild, onStartBuild, onOpenIssue, onClose,
-  onWorkingChange, waiting = [], login, decidingId, onDecide
+  onWorkingChange, changes = [], changesError, login, decidingId, onDecide
 }) => {
+  const waiting = changes.filter(change => change.status === 'held');
+  const recent = changes.filter(change => change.status !== 'held');
   const { createIssue } = useApp();
   const [scopeColumns, setScopeColumns] = useState<Set<IssueStatus>>(() => new Set<IssueStatus>(['todo']));
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
@@ -236,6 +240,20 @@ export const BoardAlphaPanel: React.FC<BoardAlphaPanelProps> = ({
         )}
         {columnTasks.length > MAX_SCOPE_TASKS && <p className="text-[11.5px] text-content-muted">Up to {MAX_SCOPE_TASKS} tasks are included. Untick a task to include the next one.</p>}
       </section>
+
+      {/* The board's agent history, with Undo; closed until opened. Held changes show in the conversation below. */}
+      {changesError && <p role="alert" className="shrink-0 border-b border-divider px-3 py-2 text-[12px] text-status-danger">{changesError}</p>}
+      {recent.length > 0 && (
+        <details className="group shrink-0 border-b border-divider">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-[12px] font-semibold text-content-secondary hover:text-content [&::-webkit-details-marker]:hidden">
+            <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
+            Recent board changes ({recent.length})
+          </summary>
+          <div className="max-h-56 overflow-y-auto">
+            <AgentChangesList changes={recent} login={login} busyId={decidingId} onDecide={onDecide} onOpenIssue={onOpenIssue} showDetails />
+          </div>
+        </details>
+      )}
 
       <div aria-live="polite" className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
         {messages.length === 0 && !proposal && !busy && (

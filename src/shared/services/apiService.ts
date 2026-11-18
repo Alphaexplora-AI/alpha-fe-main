@@ -19,7 +19,6 @@ import {
   RuntimeEngine,
   CodexAlphaSignInState,
   BoardAgentChange,
-  BoardAssistantSettings,
   PrototypeRun,
   SquadRun,
   ChatThread,
@@ -789,10 +788,6 @@ export const apiService = {
   approveBoardAgentChange: (id: string) => fetchJson<BoardAgentChange>(`/board/agent-changes/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
   rejectBoardAgentChange: (id: string) => fetchJson<BoardAgentChange>(`/board/agent-changes/${encodeURIComponent(id)}/reject`, { method: 'POST' }),
   undoBoardAgentChange: (id: string) => fetchJson<BoardAgentChange>(`/board/agent-changes/${encodeURIComponent(id)}/undo`, { method: 'POST' }),
-  getBoardAssistantSettings: (projectId: string) =>
-    fetchJson<BoardAssistantSettings>(`/board/assistant-settings?projectId=${encodeURIComponent(projectId)}`),
-  setBoardAssistantEnabled: (projectId: string, enabled: boolean) =>
-    fetchJson<{ projectId: string; enabled: boolean }>('/board/assistant-settings', { method: 'PUT', body: JSON.stringify({ projectId, enabled }) }),
   addIssueComment: (issueId: string, comment: Partial<IssueComment>) =>
     fetchJson<IssueComment>(`/issues/${issueId}/comments`, { method: 'POST', body: JSON.stringify(comment) }),
 
